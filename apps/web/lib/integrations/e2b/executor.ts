@@ -1,6 +1,9 @@
 import { generateAndPushCode } from "./client";
 import { getGitHubIntegration } from "@/lib/integrations/github/client";
+import { db, workspaces } from "@/lib/db";
+import { eq } from "drizzle-orm";
 import type { ActionResult } from "@/lib/actions/executor";
+import { DEFAULT_MODEL } from "@/lib/ai/client";
 
 export async function executeCodeGeneration(
   workspaceId: string,
@@ -12,11 +15,25 @@ export async function executeCodeGeneration(
     return { success: false, error: "GitHub not connected" };
   }
 
+  // Get workspace settings for OpenRouter
+  const workspace = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
+  });
+
+  const metadata = workspace?.metadata as {
+    model?: string;
+    openrouterApiKey?: string;
+  } | null;
+
+  if (!metadata?.openrouterApiKey) {
+    return { success: false, error: "OpenRouter API key not configured" };
+  }
+
   const repoName = payload.repoName as string;
   const description = payload.description as string;
   const specs = payload.specs as string;
+  const framework = (payload.framework as string) || "nextjs";
 
-  // Get GitHub username from integration
   const githubUsername = githubIntegration.externalName;
   if (!githubUsername) {
     return { success: false, error: "GitHub username not found" };
@@ -27,8 +44,11 @@ export async function executeCodeGeneration(
       repoName,
       description,
       specs,
+      framework,
       githubToken: githubIntegration.accessToken,
       githubUsername,
+      openrouterApiKey: metadata.openrouterApiKey,
+      model: metadata.model || DEFAULT_MODEL,
     });
 
     if (result.success) {

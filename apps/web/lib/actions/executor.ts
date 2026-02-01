@@ -3,7 +3,7 @@ import { executeLinearAction } from "@/lib/integrations/linear/executor";
 import { executeGitHubAction } from "@/lib/integrations/github/executor";
 import { executeNotionAction } from "@/lib/integrations/notion/executor";
 import { executeSlackAction } from "@/lib/integrations/slack/executor";
-import { executeCodeGeneration } from "@/lib/integrations/daytona/executor";
+import { executeCodeGeneration } from "@/lib/integrations/e2b/executor";
 
 export interface ActionResult {
   success: boolean;

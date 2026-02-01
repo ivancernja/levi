@@ -13,7 +13,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@daytonaio/sdk": "^0.138.0",
+    "@e2b/code-interpreter": "^2.3.3",
     "@linear/sdk": "^29.0.0",
     "@neondatabase/serverless": "^0.10.4",
     "@notionhq/client": "^2.2.15",
