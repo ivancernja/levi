@@ -43,3 +43,29 @@ export async function findWorkspaceByGitHubInstallation(installationId: string) 
 
   return integration?.workspace;
 }
+
+export async function listGitHubRepos(
+  workspaceId: string,
+  limit: number = 10
+): Promise<Array<{ name: string; fullName: string; description?: string; url: string; isPrivate: boolean }>> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return [];
+
+  try {
+    const repos = await github.repos.listForAuthenticatedUser({
+      per_page: limit,
+      sort: "updated",
+    });
+
+    return repos.data.map(repo => ({
+      name: repo.name,
+      fullName: repo.full_name,
+      description: repo.description || undefined,
+      url: repo.html_url,
+      isPrivate: repo.private,
+    }));
+  } catch (error) {
+    console.error("GitHub list repos error:", error);
+    return [];
+  }
+}

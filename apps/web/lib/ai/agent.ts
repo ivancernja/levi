@@ -5,6 +5,9 @@ import { getRelevantContext, getRecentMessages } from "@/lib/context/manager";
 import { db, integrations, workspaces } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import type { ActionType } from "@/lib/db/schema";
+import { searchLinearIssues, getLinearIssue } from "@/lib/integrations/linear/client";
+import { listGitHubRepos } from "@/lib/integrations/github/client";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 interface ProcessMessageInput {
   workspaceId: string;
@@ -24,6 +27,9 @@ interface ProcessMessageResult {
   reply: string;
   actions: ProposedAction[];
 }
+
+// Read tools that should be executed immediately and results fed back
+const READ_TOOLS = ["search_linear_issues", "get_linear_issue", "list_github_repos"];
 
 export async function processMessage(
   input: ProcessMessageInput
@@ -81,50 +87,113 @@ export async function processMessage(
     channelContext,
   });
 
-  // Call via OpenRouter
-  const response = await openrouter.chat.completions.create({
-    model,
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT + contextPrompt,
-      },
-      {
-        role: "user",
-        content,
-      },
-    ],
-    tools: AGENT_TOOLS,
-  });
+  // Build initial messages
+  const messages: ChatCompletionMessageParam[] = [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT + contextPrompt,
+    },
+    {
+      role: "user",
+      content,
+    },
+  ];
 
-  // Process response
-  const actions: ProposedAction[] = [];
-  let reply = "";
+  // Multi-turn loop to handle read tools
+  const MAX_TURNS = 5;
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const response = await openrouter.chat.completions.create({
+      model,
+      max_tokens: 4096,
+      messages,
+      tools: AGENT_TOOLS,
+    });
 
-  const choice = response.choices[0];
-  if (choice.message.content) {
-    reply = choice.message.content;
-  }
+    const choice = response.choices[0];
+    const assistantMessage = choice.message;
 
-  if (choice.message.tool_calls) {
-    for (const toolCall of choice.message.tool_calls) {
-      const action = toolCallToAction(
-        toolCall.function.name,
-        JSON.parse(toolCall.function.arguments)
-      );
-      if (action) {
-        actions.push(action);
+    // Add assistant message to history
+    messages.push(assistantMessage as ChatCompletionMessageParam);
+
+    // Check if we have tool calls
+    if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      let hasReadTools = false;
+      const actions: ProposedAction[] = [];
+
+      for (const toolCall of assistantMessage.tool_calls) {
+        const toolName = toolCall.function.name;
+        const toolArgs = JSON.parse(toolCall.function.arguments);
+
+        if (READ_TOOLS.includes(toolName)) {
+          // Execute read tool and add result to messages
+          hasReadTools = true;
+          const result = await executeReadTool(workspaceId, toolName, toolArgs);
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result),
+          });
+        } else {
+          // Propose action for write tools
+          const action = toolCallToAction(toolName, toolArgs);
+          if (action) {
+            actions.push(action);
+          }
+          // Add a fake tool result so the model knows it was "accepted"
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({ status: "proposed", message: "Action proposed for user approval" }),
+          });
+        }
+      }
+
+      // If we only have write tools (actions), return them
+      if (!hasReadTools && actions.length > 0) {
+        const reply = assistantMessage.content || generateReplyFromActions(actions);
+        return { reply, actions };
+      }
+
+      // If we have read tools, continue the loop to let AI process results
+      if (hasReadTools) {
+        continue;
       }
     }
+
+    // No tool calls or finished processing - return the response
+    const reply = assistantMessage.content || "";
+    return { reply, actions: [] };
   }
 
-  // If we have tool calls but no reply, generate one
-  if (choice.finish_reason === "tool_calls" && !reply) {
-    reply = generateReplyFromActions(actions);
-  }
+  // Max turns reached
+  return { reply: "I'm having trouble processing this request. Please try again.", actions: [] };
+}
 
-  return { reply, actions };
+async function executeReadTool(
+  workspaceId: string,
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
+  switch (toolName) {
+    case "search_linear_issues": {
+      const results = await searchLinearIssues(
+        workspaceId,
+        args.query as string,
+        (args.limit as number) || 10
+      );
+      return { issues: results };
+    }
+    case "get_linear_issue": {
+      const issue = await getLinearIssue(workspaceId, args.issueId as string);
+      return issue || { error: "Issue not found" };
+    }
+    case "list_github_repos": {
+      const repos = await listGitHubRepos(workspaceId, (args.limit as number) || 10);
+      return { repos };
+    }
+    default:
+      return { error: "Unknown tool" };
+  }
 }
 
 function toolCallToAction(

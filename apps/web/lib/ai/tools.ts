@@ -250,26 +250,57 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "search_context",
+      name: "search_linear_issues",
       description:
-        "Search for relevant information across all connected integrations (Slack conversations, Linear issues, GitHub PRs, Notion pages).",
+        "Search for Linear issues by query. Use this to find existing issues before creating or updating them.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: "Search query",
+            description: "Search query (searches title and description)",
           },
-          sources: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: ["slack", "linear", "github", "notion"],
-            },
-            description: "Limit search to specific sources (optional)",
+          limit: {
+            type: "number",
+            description: "Max results to return (default: 10)",
           },
         },
         required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_linear_issue",
+      description:
+        "Get details of a specific Linear issue by ID (e.g., 'ENG-123').",
+      parameters: {
+        type: "object",
+        properties: {
+          issueId: {
+            type: "string",
+            description: "The Linear issue identifier (e.g., 'ENG-123')",
+          },
+        },
+        required: ["issueId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_github_repos",
+      description:
+        "List GitHub repositories accessible to the connected account.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "Max repos to return (default: 10)",
+          },
+        },
       },
     },
   },

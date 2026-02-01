@@ -43,3 +43,52 @@ export async function findWorkspaceByLinearOrg(linearOrgId: string) {
 
   return integration?.workspace;
 }
+
+export async function searchLinearIssues(
+  workspaceId: string,
+  query: string,
+  limit: number = 10
+): Promise<Array<{ id: string; identifier: string; title: string; description?: string; state: string; priority: number }>> {
+  const linear = await getLinearClient(workspaceId);
+  if (!linear) return [];
+
+  try {
+    const issues = await linear.issueSearch(query, { first: limit });
+    return issues.nodes.map(issue => ({
+      id: issue.id,
+      identifier: issue.identifier,
+      title: issue.title,
+      description: issue.description || undefined,
+      state: issue.state?.name || "Unknown",
+      priority: issue.priority,
+    }));
+  } catch (error) {
+    console.error("Linear search error:", error);
+    return [];
+  }
+}
+
+export async function getLinearIssue(
+  workspaceId: string,
+  issueId: string
+): Promise<{ id: string; identifier: string; title: string; description?: string; state: string; priority: number; labels: string[] } | null> {
+  const linear = await getLinearClient(workspaceId);
+  if (!linear) return null;
+
+  try {
+    const issue = await linear.issue(issueId);
+    const labels = await issue.labels();
+    return {
+      id: issue.id,
+      identifier: issue.identifier,
+      title: issue.title,
+      description: issue.description || undefined,
+      state: (await issue.state)?.name || "Unknown",
+      priority: issue.priority,
+      labels: labels.nodes.map(l => l.name),
+    };
+  } catch (error) {
+    console.error("Linear get issue error:", error);
+    return null;
+  }
+}
