@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { verifySlackRequest } from "@/lib/integrations/slack/verify";
 import { getSlackClient, findWorkspaceBySlackTeam } from "@/lib/integrations/slack/client";
 import { inngest } from "@/inngest/client";
@@ -33,22 +34,20 @@ export async function POST(request: NextRequest) {
 
   const payload = JSON.parse(payloadStr);
 
-  console.log("Interaction received", { type: payload.type, actions: payload.actions?.map((a: { action_id: string }) => a.action_id) });
-
   if (payload.type === "block_actions") {
     for (const slackAction of payload.actions) {
       const actionId = slackAction.action_id as string;
 
       if (actionId.startsWith("action_approve_")) {
         const id = actionId.replace("action_approve_", "");
-        // Don't await - run in background to avoid 3s timeout
-        handleApprove(payload, id).catch(console.error);
+        // Use waitUntil to keep function alive after response
+        waitUntil(handleApprove(payload, id).catch(console.error));
       } else if (actionId.startsWith("action_reject_")) {
         const id = actionId.replace("action_reject_", "");
-        handleReject(payload, id).catch(console.error);
+        waitUntil(handleReject(payload, id).catch(console.error));
       } else if (actionId.startsWith("action_view_")) {
         const id = actionId.replace("action_view_", "");
-        handleViewChanges(payload, id).catch(console.error);
+        waitUntil(handleViewChanges(payload, id).catch(console.error));
       }
     }
   }
@@ -66,23 +65,15 @@ async function handleApprove(
   },
   actionId: string
 ) {
-  console.log("handleApprove called", { actionId, teamId: payload.team.id });
-
   const workspace = await findWorkspaceBySlackTeam(payload.team.id);
-  if (!workspace) {
-    console.log("No workspace found for team", payload.team.id);
-    return;
-  }
+  if (!workspace) return;
 
   // Get the action
   const action = await db.query.actions.findFirst({
     where: eq(actions.id, actionId),
   });
 
-  console.log("Action found:", { actionId, status: action?.status, type: action?.type });
-
   if (!action || action.status !== "pending") {
-    console.log("Action not pending or not found", { actionId, status: action?.status });
     return;
   }
 
@@ -98,7 +89,6 @@ async function handleApprove(
     .where(eq(actions.id, actionId));
 
   // Send to Inngest for background execution with Slack context
-  console.log("Sending to Inngest", { actionId, channelId: payload.channel.id, threadTs });
   await inngest.send({
     name: "action/execute",
     data: {
@@ -110,7 +100,6 @@ async function handleApprove(
       },
     },
   });
-  console.log("Sent to Inngest successfully");
 }
 
 async function handleReject(
