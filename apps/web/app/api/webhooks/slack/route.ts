@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { verifySlackRequest } from "@/lib/integrations/slack/verify";
 import { findWorkspaceBySlackTeam, getSlackClient, getChannelHistory } from "@/lib/integrations/slack/client";
 import { buildReplyBlocks } from "@/lib/integrations/slack/blocks";
 import { processMessage } from "@/lib/ai/agent";
 import { db, conversations, messages, actions } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+
+// Random thinking messages for fun
+const THINKING_MESSAGES = [
+  "hmm let me think...",
+  "on it...",
+  "thinking...",
+  "one sec...",
+  "lemme check...",
+  "👀",
+  "🤔",
+];
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -35,16 +47,31 @@ export async function POST(request: NextRequest) {
   if (payload.type === "event_callback") {
     const event = payload.event;
 
-    // Only handle app_mention events (not message events with mentions to avoid duplicates)
+    // Skip bot messages and message_changed events
+    if (event.bot_id || event.subtype === "message_changed") {
+      return NextResponse.json({ ok: true });
+    }
+
+    // Handle app_mention (direct @levi)
     if (event.type === "app_mention") {
-      await handleAppMention(payload.team_id, event);
+      waitUntil(handleMention(payload.team_id, event).catch(console.error));
+    }
+    // Handle regular messages that mention "levi" (case insensitive)
+    else if (event.type === "message" && mentionsLevi(event.text)) {
+      waitUntil(handleMention(payload.team_id, event).catch(console.error));
     }
   }
 
   return NextResponse.json({ ok: true });
 }
 
-async function handleAppMention(
+function mentionsLevi(text: string | undefined): boolean {
+  if (!text) return false;
+  // Match "levi" as a word (not part of another word like "levitate")
+  return /\blevi\b/i.test(text);
+}
+
+async function handleMention(
   teamId: string,
   event: {
     channel: string;
@@ -76,6 +103,16 @@ async function handleAppMention(
     console.error("No Slack client for workspace:", workspace.id);
     return;
   }
+
+  // Post "thinking" message immediately
+  const thinkingMsg = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
+  const thinkingResponse = await slack.chat.postMessage({
+    channel: event.channel,
+    thread_ts: event.thread_ts || event.ts,
+    text: thinkingMsg,
+  });
+
+  const messageTs = thinkingResponse.ts;
 
   // Get or create conversation
   const threadTs = event.thread_ts || event.ts;
@@ -159,20 +196,24 @@ async function handleAppMention(
       },
     });
 
-    // Build and send Slack message with action cards
+    // Build blocks for the response
     const blocks = buildReplyBlocks(result.reply, createdActions);
 
-    await slack.chat.postMessage({
+    // Update the "thinking" message with the actual response
+    await slack.chat.update({
       channel: event.channel,
+      ts: messageTs!,
       text: result.reply,
       blocks,
     });
   } catch (error) {
     console.error("Error processing message:", error);
 
-    await slack.chat.postMessage({
+    // Update the thinking message with error
+    await slack.chat.update({
       channel: event.channel,
-      text: "Sorry, I encountered an error processing your request.",
+      ts: messageTs!,
+      text: "sorry, something went wrong 😅",
     });
   }
 }
