@@ -35,17 +35,9 @@ export async function POST(request: NextRequest) {
   if (payload.type === "event_callback") {
     const event = payload.event;
 
-    // Handle app mentions
+    // Only handle app_mention events (not message events with mentions to avoid duplicates)
     if (event.type === "app_mention") {
       await handleAppMention(payload.team_id, event);
-    }
-
-    // Handle messages in channels where bot is a member
-    if (event.type === "message" && !event.bot_id && event.channel_type === "channel") {
-      // Only process if the bot is mentioned
-      if (event.text?.includes(`<@${payload.authorizations?.[0]?.user_id}>`)) {
-        await handleAppMention(payload.team_id, event);
-      }
     }
   }
 
