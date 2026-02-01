@@ -9,52 +9,52 @@ interface ActionCardConfig {
 
 const ACTION_CONFIGS: Record<ActionType, ActionCardConfig> = {
   "linear.issue.update": {
-    icon: ":linear:",
+    icon: ":pencil2:",
     title: "Update Linear Issue",
     color: "#5E6AD2",
   },
   "linear.issue.create": {
-    icon: ":linear:",
+    icon: ":memo:",
     title: "Create Linear Issue",
     color: "#5E6AD2",
   },
   "linear.comment.create": {
-    icon: ":linear:",
+    icon: ":speech_balloon:",
     title: "Add Linear Comment",
     color: "#5E6AD2",
   },
   "github.pr.create": {
-    icon: ":github:",
+    icon: ":git-merge:",
     title: "Draft Pull Request",
     color: "#238636",
   },
   "github.issue.create": {
-    icon: ":github:",
+    icon: ":bug:",
     title: "Create GitHub Issue",
     color: "#238636",
   },
   "github.comment.create": {
-    icon: ":github:",
+    icon: ":speech_balloon:",
     title: "Add GitHub Comment",
     color: "#238636",
   },
   "notion.page.update": {
-    icon: ":notion:",
+    icon: ":page_facing_up:",
     title: "Update Notion Page",
     color: "#000000",
   },
   "notion.page.create": {
-    icon: ":notion:",
+    icon: ":page_facing_up:",
     title: "Create Notion Page",
     color: "#000000",
   },
   "slack.message.send": {
-    icon: ":slack:",
+    icon: ":envelope:",
     title: "Send Slack Message",
     color: "#4A154B",
   },
   "slack.message.reply": {
-    icon: ":slack:",
+    icon: ":left_speech_bubble:",
     title: "Reply in Thread",
     color: "#4A154B",
   },
@@ -76,7 +76,41 @@ export function buildActionCard(action: Action): KnownBlock[] {
 
   // Add preview content based on action type
   if (preview) {
-    if (action.type === "linear.issue.update") {
+    if (action.type === "linear.issue.create") {
+      const title = preview.title as string;
+      const description = preview.description as string;
+      const teamKey = preview.teamKey as string;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${title}*`,
+        },
+      } as SectionBlock);
+
+      if (description) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: description.slice(0, 500) + (description.length > 500 ? "..." : ""),
+          },
+        } as SectionBlock);
+      }
+
+      if (teamKey) {
+        blocks.push({
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `Team: \`${teamKey}\``,
+            },
+          ],
+        });
+      }
+    } else if (action.type === "linear.issue.update") {
       const issueId = preview.issueId as string;
       const title = preview.title as string;
       const description = preview.description as string;
@@ -110,6 +144,40 @@ export function buildActionCard(action: Action): KnownBlock[] {
             {
               type: "mrkdwn",
               text: `Changes:\n${changesList}`,
+            },
+          ],
+        });
+      }
+    } else if (action.type === "github.issue.create") {
+      const title = preview.title as string;
+      const body = preview.body as string;
+      const repo = preview.repo as string;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${title}*`,
+        },
+      } as SectionBlock);
+
+      if (body) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: body.slice(0, 500) + (body.length > 500 ? "..." : ""),
+          },
+        } as SectionBlock);
+      }
+
+      if (repo) {
+        blocks.push({
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `Repository: \`${repo}\``,
             },
           ],
         });
@@ -160,6 +228,27 @@ export function buildActionCard(action: Action): KnownBlock[] {
           },
         } as SectionBlock);
       }
+
+      if (content) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: content.slice(0, 500) + (content.length > 500 ? "..." : ""),
+          },
+        } as SectionBlock);
+      }
+    } else if (action.type === "notion.page.create") {
+      const title = preview.title as string;
+      const content = preview.content as string;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${title}*`,
+        },
+      } as SectionBlock);
 
       if (content) {
         blocks.push({
