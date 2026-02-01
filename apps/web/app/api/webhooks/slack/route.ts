@@ -148,7 +148,6 @@ async function handleAppMention(
 
     await slack.chat.postMessage({
       channel: event.channel,
-      thread_ts: threadTs,
       text: result.reply,
       blocks,
     });
@@ -157,7 +156,6 @@ async function handleAppMention(
 
     await slack.chat.postMessage({
       channel: event.channel,
-      thread_ts: threadTs,
       text: "Sorry, I encountered an error processing your request.",
     });
   }
