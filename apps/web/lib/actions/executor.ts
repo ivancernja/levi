@@ -21,6 +21,7 @@ export async function executeAction(action: Action): Promise<ActionResult> {
     case "linear.comment.create":
       return executeLinearAction(action.workspaceId, type, payload);
 
+    case "github.repo.create":
     case "github.pr.create":
     case "github.issue.create":
     case "github.comment.create":

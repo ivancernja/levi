@@ -82,6 +82,32 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "propose_github_repo_create",
+      description:
+        "Propose creating a new GitHub repository. The user will need to approve before it's created.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Repository name (e.g., 'my-app')",
+          },
+          description: {
+            type: "string",
+            description: "Repository description",
+          },
+          isPrivate: {
+            type: "boolean",
+            description: "Whether the repo should be private (default: false)",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "propose_github_pr",
       description:
         "Propose drafting a GitHub pull request. The user will need to approve before it's created.",

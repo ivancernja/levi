@@ -23,6 +23,11 @@ const ACTION_CONFIGS: Record<ActionType, ActionCardConfig> = {
     title: "Add Linear Comment",
     color: "#5E6AD2",
   },
+  "github.repo.create": {
+    icon: ":file_folder:",
+    title: "Create GitHub Repository",
+    color: "#238636",
+  },
   "github.pr.create": {
     icon: ":git-merge:",
     title: "Draft Pull Request",
@@ -147,6 +152,28 @@ export function buildActionCard(action: Action): KnownBlock[] {
             },
           ],
         });
+      }
+    } else if (action.type === "github.repo.create") {
+      const name = preview.name as string;
+      const description = preview.description as string;
+      const isPrivate = preview.isPrivate as boolean;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${name}*${isPrivate ? " (private)" : ""}`,
+        },
+      } as SectionBlock);
+
+      if (description) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: description,
+          },
+        } as SectionBlock);
       }
     } else if (action.type === "github.issue.create") {
       const title = preview.title as string;
@@ -330,6 +357,8 @@ function getApproveButtonText(type: ActionType): string {
       return "Update issue";
     case "linear.issue.create":
       return "Create issue";
+    case "github.repo.create":
+      return "Create repo";
     case "github.pr.create":
       return "Draft PR";
     case "github.issue.create":

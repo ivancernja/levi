@@ -159,6 +159,17 @@ function toolCallToAction(
         },
       };
 
+    case "propose_github_repo_create":
+      return {
+        type: "github.repo.create",
+        payload: input,
+        preview: {
+          name: input.name,
+          description: input.description,
+          isPrivate: input.isPrivate || false,
+        },
+      };
+
     case "propose_github_pr":
       return {
         type: "github.pr.create",

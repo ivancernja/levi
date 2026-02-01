@@ -197,6 +197,7 @@ export type ActionType =
   | "linear.issue.update"
   | "linear.issue.create"
   | "linear.comment.create"
+  | "github.repo.create"
   | "github.pr.create"
   | "github.issue.create"
   | "github.comment.create"
