@@ -10,7 +10,7 @@ import { TeamDirectory } from "@/components/settings/team-directory";
 import { RepoShortcuts } from "@/components/settings/repo-shortcuts";
 import { WorkspaceNotes } from "@/components/settings/workspace-notes";
 
-function Fieldset({ legend, children, description }: { legend: string; children: React.ReactNode; description?: string }) {
+function Fieldset({ legend, children, description }: { legend: string; children: React.ReactNode; description?: React.ReactNode }) {
   return (
     <div className="fieldset">
       <div className="fieldset-legend">{legend}</div>
