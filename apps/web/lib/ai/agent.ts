@@ -181,7 +181,8 @@ export async function processMessage(
   ];
 
   // Multi-turn loop to handle read tools
-  const MAX_TURNS = 5;
+  // Need enough turns for: search/list -> get files -> read content -> propose action
+  const MAX_TURNS = 10;
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const response = await openrouter.chat.completions.create({
       model,
@@ -256,8 +257,11 @@ export async function processMessage(
     return { reply, actions: [] };
   }
 
-  // Max turns reached
-  return { reply: "I'm having trouble processing this request. Please try again.", actions: [] };
+  // Max turns reached - this usually means the request needed too many lookups
+  return {
+    reply: "I ran out of steps trying to complete this. Could you be more specific? For example, include the full repo name (owner/repo) or the exact file path.",
+    actions: []
+  };
 }
 
 async function executeReadTool(
@@ -296,7 +300,10 @@ async function executeReadTool(
 
     // GitHub tools
     case "list_github_repos": {
-      const repos = await listGitHubRepos(workspaceId, (args.limit as number) || 10);
+      const repos = await listGitHubRepos(workspaceId, {
+        query: args.query as string | undefined,
+        limit: (args.limit as number) || 30,
+      });
       return { repos };
     }
     case "search_github_issues": {

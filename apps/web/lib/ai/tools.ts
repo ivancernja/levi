@@ -377,13 +377,17 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
     function: {
       name: "list_github_repos",
       description:
-        "List GitHub repositories accessible to the connected account.",
+        "Search/list GitHub repositories. Use this FIRST when a user mentions a repo by name or nickname to find the full owner/repo. For example, if user says 'druckloft repo', search for 'druckloft' to find the actual repo.",
       parameters: {
         type: "object",
         properties: {
+          query: {
+            type: "string",
+            description: "Search query to filter repos by name (e.g., 'druckloft', 'api', 'frontend')",
+          },
           limit: {
             type: "number",
-            description: "Max repos to return (default: 10)",
+            description: "Max repos to return (default: 30)",
           },
         },
       },

@@ -46,12 +46,44 @@ export async function findWorkspaceByGitHubInstallation(installationId: string) 
 
 export async function listGitHubRepos(
   workspaceId: string,
-  limit: number = 10
+  options: {
+    limit?: number;
+    query?: string;
+  } = {}
 ): Promise<Array<{ name: string; fullName: string; description?: string; url: string; isPrivate: boolean }>> {
   const github = await getGitHubClient(workspaceId);
   if (!github) return [];
 
+  const { limit = 30, query } = options;
+
   try {
+    // If there's a query, search for matching repos
+    if (query) {
+      // First get all user's repos and filter locally for better matching
+      const repos = await github.repos.listForAuthenticatedUser({
+        per_page: 100,
+        sort: "updated",
+      });
+
+      const queryLower = query.toLowerCase();
+      const matches = repos.data
+        .filter(repo =>
+          repo.name.toLowerCase().includes(queryLower) ||
+          repo.full_name.toLowerCase().includes(queryLower) ||
+          repo.description?.toLowerCase().includes(queryLower)
+        )
+        .slice(0, limit);
+
+      return matches.map(repo => ({
+        name: repo.name,
+        fullName: repo.full_name,
+        description: repo.description || undefined,
+        url: repo.html_url,
+        isPrivate: repo.private,
+      }));
+    }
+
+    // No query - just list recent repos
     const repos = await github.repos.listForAuthenticatedUser({
       per_page: limit,
       sort: "updated",
