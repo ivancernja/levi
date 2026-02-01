@@ -2,8 +2,8 @@ import { createOpenRouterClient, DEFAULT_MODEL } from "./client";
 import { SYSTEM_PROMPT, buildContextPrompt } from "./prompts";
 import { AGENT_TOOLS } from "./tools";
 import { getRelevantContext, getRecentMessages } from "@/lib/context/manager";
-import { db, integrations, workspaces } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { db, integrations, workspaces, actions } from "@/lib/db";
+import { eq, desc, and } from "drizzle-orm";
 import type { ActionType } from "@/lib/db/schema";
 import { searchLinearIssues, getLinearIssue } from "@/lib/integrations/linear/client";
 import { listGitHubRepos } from "@/lib/integrations/github/client";
@@ -70,6 +70,13 @@ export async function processMessage(
   // Get relevant context via semantic search
   const relevantContext = await getRelevantContext(workspaceId, content, 5);
 
+  // Get recent actions (what Levi has done recently)
+  const recentActions = await db.query.actions.findMany({
+    where: eq(actions.workspaceId, workspaceId),
+    orderBy: [desc(actions.createdAt)],
+    limit: 10,
+  });
+
   // Build context for the prompt
   const contextPrompt = buildContextPrompt({
     recentMessages: recentMessages.map((m) => ({
@@ -83,6 +90,13 @@ export async function processMessage(
     integrations: workspaceIntegrations.map((i) => ({
       type: i.type,
       name: i.externalName || i.type,
+    })),
+    recentActions: recentActions.map((a) => ({
+      type: a.type,
+      status: a.status,
+      payload: a.payload as Record<string, unknown>,
+      result: a.result as Record<string, unknown> | null,
+      createdAt: a.createdAt,
     })),
     channelContext,
   });

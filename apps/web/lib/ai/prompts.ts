@@ -43,6 +43,13 @@ export function buildContextPrompt(context: {
   recentMessages: Array<{ role: string; content: string }>;
   relevantContext: Array<{ source: string; content: string }>;
   integrations: Array<{ type: string; name: string }>;
+  recentActions?: Array<{
+    type: string;
+    status: string;
+    payload: Record<string, unknown>;
+    result: Record<string, unknown> | null;
+    createdAt: Date;
+  }>;
   channelContext?: string;
 }): string {
   let prompt = "";
@@ -51,6 +58,30 @@ export function buildContextPrompt(context: {
     prompt += "\n## Connected Integrations\n";
     for (const integration of context.integrations) {
       prompt += `- ${integration.type}: ${integration.name}\n`;
+    }
+  }
+
+  if (context.recentActions && context.recentActions.length > 0) {
+    prompt += "\n## Recent Actions (what you've done)\n";
+    prompt += "IMPORTANT: Remember these! Don't propose creating something that already exists.\n";
+    for (const action of context.recentActions) {
+      const payload = action.payload;
+      const result = action.result;
+      let summary = `- ${action.type} (${action.status})`;
+
+      // Add relevant details based on action type
+      if (action.type === "code.generate" && payload.repoName) {
+        summary += `: created repo "${payload.repoName}"`;
+        if (result?.repoUrl) {
+          summary += ` → ${result.repoUrl}`;
+        }
+      } else if (action.type === "linear.issue.create" && payload.title) {
+        summary += `: "${payload.title}"`;
+      } else if (action.type === "github.pr.create" && payload.title) {
+        summary += `: "${payload.title}" in ${payload.repo}`;
+      }
+
+      prompt += summary + "\n";
     }
   }
 

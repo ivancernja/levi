@@ -60,6 +60,10 @@ export async function POST(request: NextRequest) {
     else if (event.type === "message" && mentionsLevi(event.text)) {
       waitUntil(handleMention(payload.team_id, event).catch(console.error));
     }
+    // Handle thread replies where Levi is already participating
+    else if (event.type === "message" && event.thread_ts) {
+      waitUntil(handleThreadReplyIfParticipating(payload.team_id, event).catch(console.error));
+    }
   }
 
   return NextResponse.json({ ok: true });
@@ -69,6 +73,28 @@ function mentionsLevi(text: string | undefined): boolean {
   if (!text) return false;
   // Match "levi" as a word (not part of another word like "levitate")
   return /\blevi\b/i.test(text);
+}
+
+async function handleThreadReplyIfParticipating(
+  teamId: string,
+  event: {
+    channel: string;
+    thread_ts: string;
+    ts: string;
+    text: string;
+    user: string;
+  }
+) {
+  // Check if we have a conversation for this thread (meaning Levi participated)
+  const externalId = `${event.channel}:${event.thread_ts}`;
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.externalId, externalId),
+  });
+
+  // If Levi is in this thread, treat the reply as directed at Levi
+  if (conversation) {
+    await handleMention(teamId, event);
+  }
 }
 
 async function handleMention(
