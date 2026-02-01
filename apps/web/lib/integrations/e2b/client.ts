@@ -50,7 +50,7 @@ export async function generateAndPushCode(params: {
     await progress(`:page_facing_up: generated ${files.length} files`);
 
     // Step 2: Create GitHub repo
-    await progress(":octocat: creating github repo...");
+    await progress(":file_folder: creating github repo...");
     const createRepoResponse = await fetch("https://api.github.com/user/repos", {
       method: "POST",
       headers: {

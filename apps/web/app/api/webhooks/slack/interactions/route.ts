@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySlackRequest } from "@/lib/integrations/slack/verify";
 import { getSlackClient, findWorkspaceBySlackTeam } from "@/lib/integrations/slack/client";
-import { executeAction } from "@/lib/actions/executor";
+import { inngest } from "@/inngest/client";
 import { db, actions } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
@@ -39,18 +39,19 @@ export async function POST(request: NextRequest) {
 
       if (actionId.startsWith("action_approve_")) {
         const id = actionId.replace("action_approve_", "");
-        await handleApprove(payload, id);
+        // Don't await - run in background to avoid 3s timeout
+        handleApprove(payload, id).catch(console.error);
       } else if (actionId.startsWith("action_reject_")) {
         const id = actionId.replace("action_reject_", "");
-        await handleReject(payload, id);
+        handleReject(payload, id).catch(console.error);
       } else if (actionId.startsWith("action_view_")) {
-        // View changes - could open a modal
         const id = actionId.replace("action_view_", "");
-        await handleViewChanges(payload, id);
+        handleViewChanges(payload, id).catch(console.error);
       }
     }
   }
 
+  // Respond immediately to avoid Slack's 3s timeout
   return NextResponse.json({ ok: true });
 }
 
@@ -65,9 +66,6 @@ async function handleApprove(
 ) {
   const workspace = await findWorkspaceBySlackTeam(payload.team.id);
   if (!workspace) return;
-
-  const slack = await getSlackClient(workspace.id);
-  if (!slack) return;
 
   // Get the action
   const action = await db.query.actions.findFirst({
@@ -89,91 +87,18 @@ async function handleApprove(
     })
     .where(eq(actions.id, actionId));
 
-  // Post progress update
-  const progressMsg = await slack.chat.postMessage({
-    channel: payload.channel.id,
-    thread_ts: threadTs,
-    text: getProgressMessage(action.type as string, "started"),
+  // Send to Inngest for background execution with Slack context
+  await inngest.send({
+    name: "action/execute",
+    data: {
+      actionId,
+      slackContext: {
+        channelId: payload.channel.id,
+        threadTs,
+        workspaceId: workspace.id,
+      },
+    },
   });
-
-  // Create progress callback for multi-step actions
-  const onProgress = async (message: string) => {
-    if (progressMsg.ts) {
-      await slack.chat.postMessage({
-        channel: payload.channel.id,
-        thread_ts: threadTs,
-        text: message,
-      });
-    }
-  };
-
-  // Execute the action
-  try {
-    const result = await executeAction(action, onProgress);
-
-    // Update action with result
-    await db
-      .update(actions)
-      .set({
-        status: "executed",
-        result: result.data,
-        executedAt: new Date(),
-      })
-      .where(eq(actions.id, actionId));
-
-    // Update progress message
-    if (progressMsg.ts) {
-      await slack.chat.update({
-        channel: payload.channel.id,
-        ts: progressMsg.ts,
-        text: getProgressMessage(action.type as string, "done", result.url),
-      });
-    }
-  } catch (error) {
-    // Update action as failed
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    await db
-      .update(actions)
-      .set({
-        status: "failed",
-        error: errorMsg,
-      })
-      .where(eq(actions.id, actionId));
-
-    // Update progress message with error
-    if (progressMsg.ts) {
-      await slack.chat.update({
-        channel: payload.channel.id,
-        ts: progressMsg.ts,
-        text: `:x: failed: ${errorMsg}`,
-      });
-    }
-  }
-}
-
-function getProgressMessage(actionType: string, status: "started" | "done", url?: string): string {
-  const actionNames: Record<string, string> = {
-    "linear.issue.create": "creating linear issue",
-    "linear.issue.update": "updating linear issue",
-    "github.repo.create": "creating github repo",
-    "github.pr.create": "drafting PR",
-    "github.issue.create": "creating github issue",
-    "notion.page.create": "creating notion page",
-    "notion.page.update": "updating notion page",
-    "slack.message.send": "sending message",
-    "code.generate": "generating code & pushing to github",
-  };
-
-  const name = actionNames[actionType] || actionType;
-
-  if (status === "started") {
-    return `:hourglass_flowing_sand: ${name}...`;
-  }
-
-  if (url) {
-    return `:white_check_mark: done - <${url}|view>`;
-  }
-  return `:white_check_mark: done`;
 }
 
 async function handleReject(

@@ -1,13 +1,52 @@
 import { inngest } from "./client";
 import { executeAction } from "@/lib/actions/executor";
-import { db, actions, type Action } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { db, actions, integrations, type Action } from "@/lib/db";
+import { eq, and } from "drizzle-orm";
+import { WebClient } from "@slack/web-api";
 
 export const executeActionFunction = inngest.createFunction(
   { id: "execute-action", retries: 2 },
   { event: "action/execute" },
   async ({ event, step }) => {
-    const { actionId } = event.data as { actionId: string };
+    const { actionId, slackContext } = event.data as {
+      actionId: string;
+      slackContext?: {
+        channelId: string;
+        threadTs: string;
+        workspaceId: string;
+      };
+    };
+
+    // Get Slack client if we have context
+    let slack: WebClient | null = null;
+    if (slackContext) {
+      const integration = await db.query.integrations.findFirst({
+        where: and(
+          eq(integrations.workspaceId, slackContext.workspaceId),
+          eq(integrations.type, "slack")
+        ),
+      });
+      if (integration) {
+        slack = new WebClient(integration.accessToken);
+      }
+    }
+
+    const postProgress = async (message: string) => {
+      if (slack && slackContext) {
+        try {
+          await slack.chat.postMessage({
+            channel: slackContext.channelId,
+            thread_ts: slackContext.threadTs,
+            text: message,
+          });
+        } catch (e) {
+          console.error("Failed to post progress:", e);
+        }
+      }
+    };
+
+    // Post starting message
+    await postProgress(":hourglass_flowing_sand: working on it...");
 
     // Get and execute in a single step to avoid serialization issues
     const result = await step.run("execute-action", async () => {
@@ -19,7 +58,7 @@ export const executeActionFunction = inngest.createFunction(
         throw new Error(`Action ${actionId} not found`);
       }
 
-      return executeAction(action as Action);
+      return executeAction(action as Action, postProgress);
     });
 
     // Update the action with result
@@ -33,6 +72,13 @@ export const executeActionFunction = inngest.createFunction(
             executedAt: new Date(),
           })
           .where(eq(actions.id, actionId));
+
+        // Post success
+        if (result.url) {
+          await postProgress(`:white_check_mark: done - <${result.url}|view>`);
+        } else {
+          await postProgress(`:white_check_mark: done`);
+        }
       } else {
         await db
           .update(actions)
@@ -41,6 +87,8 @@ export const executeActionFunction = inngest.createFunction(
             error: result.error,
           })
           .where(eq(actions.id, actionId));
+
+        await postProgress(`:x: failed: ${result.error}`);
       }
     });
 
