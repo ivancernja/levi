@@ -8,10 +8,18 @@ import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
+  const payload = JSON.parse(body);
+
+  // Handle URL verification challenge FIRST (before signature verification)
+  // This is safe because it just echoes back the challenge
+  if (payload.type === "url_verification") {
+    return NextResponse.json({ challenge: payload.challenge });
+  }
+
   const timestamp = request.headers.get("x-slack-request-timestamp") || "";
   const signature = request.headers.get("x-slack-signature") || "";
 
-  // Verify request is from Slack
+  // Verify request is from Slack for all other requests
   if (
     !verifySlackRequest(
       process.env.SLACK_SIGNING_SECRET!,
@@ -21,13 +29,6 @@ export async function POST(request: NextRequest) {
     )
   ) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-  }
-
-  const payload = JSON.parse(body);
-
-  // Handle URL verification challenge
-  if (payload.type === "url_verification") {
-    return NextResponse.json({ challenge: payload.challenge });
   }
 
   // Handle events
