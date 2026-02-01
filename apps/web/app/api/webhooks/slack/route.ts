@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySlackRequest } from "@/lib/integrations/slack/verify";
-import { findWorkspaceBySlackTeam, getSlackClient } from "@/lib/integrations/slack/client";
+import { findWorkspaceBySlackTeam, getSlackClient, getChannelHistory } from "@/lib/integrations/slack/client";
 import { buildReplyBlocks } from "@/lib/integrations/slack/blocks";
 import { processMessage } from "@/lib/ai/agent";
 import { db, conversations, messages, actions } from "@/lib/db";
@@ -116,6 +116,12 @@ async function handleAppMention(
     })
     .returning();
 
+  // Fetch recent channel history for context
+  const channelHistory = await getChannelHistory(workspace.id, event.channel, 30);
+  const channelContext = channelHistory
+    .map(m => `${m.user}: ${m.text}`)
+    .join("\n");
+
   // Process with AI agent
   try {
     const result = await processMessage({
@@ -123,6 +129,7 @@ async function handleAppMention(
       conversationId: conversation.id,
       content: event.text,
       userId: event.user,
+      channelContext,
     });
 
     // Store proposed actions

@@ -11,6 +11,7 @@ interface ProcessMessageInput {
   conversationId: string;
   content: string;
   userId: string;
+  channelContext?: string;
 }
 
 interface ProposedAction {
@@ -27,7 +28,7 @@ interface ProcessMessageResult {
 export async function processMessage(
   input: ProcessMessageInput
 ): Promise<ProcessMessageResult> {
-  const { workspaceId, conversationId, content } = input;
+  const { workspaceId, conversationId, content, channelContext } = input;
 
   // Get workspace with settings
   const workspace = await db.query.workspaces.findFirst({
@@ -77,6 +78,7 @@ export async function processMessage(
       type: i.type,
       name: i.externalName || i.type,
     })),
+    channelContext,
   });
 
   // Call via OpenRouter

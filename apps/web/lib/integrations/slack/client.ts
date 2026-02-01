@@ -39,3 +39,46 @@ export async function findWorkspaceBySlackTeam(slackTeamId: string) {
 
   return integration?.workspace;
 }
+
+export async function getChannelHistory(
+  workspaceId: string,
+  channelId: string,
+  limit: number = 50
+): Promise<Array<{ user: string; text: string; ts: string }>> {
+  const slack = await getSlackClient(workspaceId);
+  if (!slack) return [];
+
+  try {
+    const result = await slack.conversations.history({
+      channel: channelId,
+      limit,
+    });
+
+    if (!result.messages) return [];
+
+    // Get user info for readable names
+    const userIds = [...new Set(result.messages.map(m => m.user).filter(Boolean))] as string[];
+    const userMap: Record<string, string> = {};
+
+    for (const userId of userIds) {
+      try {
+        const userInfo = await slack.users.info({ user: userId });
+        userMap[userId] = userInfo.user?.real_name || userInfo.user?.name || userId;
+      } catch {
+        userMap[userId] = userId;
+      }
+    }
+
+    return result.messages
+      .filter(m => m.text && !m.bot_id) // Filter out bot messages
+      .reverse() // Chronological order
+      .map(m => ({
+        user: userMap[m.user || ""] || "Unknown",
+        text: m.text || "",
+        ts: m.ts || "",
+      }));
+  } catch (error) {
+    console.error("Failed to fetch channel history:", error);
+    return [];
+  }
+}

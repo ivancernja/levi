@@ -7,15 +7,8 @@ import { db, actions } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
-  const formData = await request.formData();
-  const payloadStr = formData.get("payload") as string;
-
-  if (!payloadStr) {
-    return NextResponse.json({ error: "Missing payload" }, { status: 400 });
-  }
-
-  // Verify request (we need to reconstruct the body for verification)
-  const body = `payload=${encodeURIComponent(payloadStr)}`;
+  // Read raw body for signature verification
+  const body = await request.text();
   const timestamp = request.headers.get("x-slack-request-timestamp") || "";
   const signature = request.headers.get("x-slack-signature") || "";
 
@@ -27,7 +20,16 @@ export async function POST(request: NextRequest) {
       body
     )
   ) {
+    console.error("Slack signature verification failed");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
+  // Parse the URL-encoded body
+  const params = new URLSearchParams(body);
+  const payloadStr = params.get("payload");
+
+  if (!payloadStr) {
+    return NextResponse.json({ error: "Missing payload" }, { status: 400 });
   }
 
   const payload = JSON.parse(payloadStr);

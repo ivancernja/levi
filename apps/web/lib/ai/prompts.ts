@@ -42,6 +42,7 @@ export function buildContextPrompt(context: {
   recentMessages: Array<{ role: string; content: string }>;
   relevantContext: Array<{ source: string; content: string }>;
   integrations: Array<{ type: string; name: string }>;
+  channelContext?: string;
 }): string {
   let prompt = "";
 
@@ -52,15 +53,22 @@ export function buildContextPrompt(context: {
     }
   }
 
+  if (context.channelContext) {
+    prompt += "\n## Recent Channel Conversation\n";
+    prompt += "Here's what's been discussed in this channel recently:\n";
+    prompt += "```\n" + context.channelContext + "\n```\n";
+    prompt += "Use this context to understand what the team has been discussing.\n";
+  }
+
   if (context.relevantContext.length > 0) {
-    prompt += "\n## Relevant Context\n";
+    prompt += "\n## Relevant Context from Memory\n";
     for (const item of context.relevantContext) {
       prompt += `[${item.source}]: ${item.content}\n\n`;
     }
   }
 
   if (context.recentMessages.length > 0) {
-    prompt += "\n## Recent Conversation\n";
+    prompt += "\n## Recent Conversation with Levi\n";
     for (const msg of context.recentMessages) {
       prompt += `${msg.role}: ${msg.content}\n`;
     }
