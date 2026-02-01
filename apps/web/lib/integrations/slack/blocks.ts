@@ -63,6 +63,11 @@ const ACTION_CONFIGS: Record<ActionType, ActionCardConfig> = {
     title: "Reply in Thread",
     color: "#4A154B",
   },
+  "code.generate": {
+    icon: ":rocket:",
+    title: "Generate & Push Code",
+    color: "#6366F1",
+  },
 };
 
 export function buildActionCard(action: Action): KnownBlock[] {
@@ -265,6 +270,47 @@ export function buildActionCard(action: Action): KnownBlock[] {
           },
         } as SectionBlock);
       }
+    } else if (action.type === "code.generate") {
+      const repoName = preview.repoName as string;
+      const description = preview.description as string;
+      const specs = preview.specs as string;
+      const framework = preview.framework as string;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Repository:* \`${repoName}\`\n*Framework:* ${framework || "nextjs"}`,
+        },
+      } as SectionBlock);
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Description:*\n${description}`,
+        },
+      } as SectionBlock);
+
+      if (specs) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Specs:*\n${specs.slice(0, 500)}${specs.length > 500 ? "..." : ""}`,
+          },
+        } as SectionBlock);
+      }
+
+      blocks.push({
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: ":warning: This will create a new GitHub repo and push generated code",
+          },
+        ],
+      });
     } else if (action.type === "notion.page.create") {
       const title = preview.title as string;
       const content = preview.content as string;
@@ -370,6 +416,8 @@ function getApproveButtonText(type: ActionType): string {
     case "slack.message.send":
     case "slack.message.reply":
       return "Send";
+    case "code.generate":
+      return "Generate code";
     default:
       return "Approve";
   }

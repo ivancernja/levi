@@ -304,6 +304,37 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "propose_code_generation",
+      description:
+        "Propose generating code and pushing it to a new GitHub repository. Use this when asked to build/code/create an app or feature. The user will need to approve before execution.",
+      parameters: {
+        type: "object",
+        properties: {
+          repoName: {
+            type: "string",
+            description: "Name for the new repository (lowercase, no spaces)",
+          },
+          description: {
+            type: "string",
+            description: "Short description of what will be built",
+          },
+          specs: {
+            type: "string",
+            description: "Detailed specifications for what to build (features, design, tech stack)",
+          },
+          framework: {
+            type: "string",
+            enum: ["nextjs", "react", "node", "python"],
+            description: "Framework/language to use (default: nextjs)",
+          },
+        },
+        required: ["repoName", "description", "specs"],
+      },
+    },
+  },
 ];
 
 export type ToolName = (typeof AGENT_TOOLS)[number]["function"]["name"];

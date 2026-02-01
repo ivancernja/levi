@@ -204,7 +204,8 @@ export type ActionType =
   | "notion.page.update"
   | "notion.page.create"
   | "slack.message.send"
-  | "slack.message.reply";
+  | "slack.message.reply"
+  | "code.generate";
 
 export type ActionStatus = "pending" | "approved" | "rejected" | "executed" | "failed";
 

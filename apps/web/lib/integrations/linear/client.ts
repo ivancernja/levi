@@ -53,15 +53,20 @@ export async function searchLinearIssues(
   if (!linear) return [];
 
   try {
-    const issues = await linear.issueSearch(query, { first: limit });
-    return issues.nodes.map(issue => ({
-      id: issue.id,
-      identifier: issue.identifier,
-      title: issue.title,
-      description: issue.description || undefined,
-      state: issue.state?.name || "Unknown",
-      priority: issue.priority,
-    }));
+    const issues = await linear.issueSearch({ query, first: limit });
+    const results = [];
+    for (const issue of issues.nodes) {
+      const state = await issue.state;
+      results.push({
+        id: issue.id,
+        identifier: issue.identifier,
+        title: issue.title,
+        description: issue.description || undefined,
+        state: state?.name || "Unknown",
+        priority: issue.priority,
+      });
+    }
+    return results;
   } catch (error) {
     console.error("Linear search error:", error);
     return [];
@@ -77,13 +82,14 @@ export async function getLinearIssue(
 
   try {
     const issue = await linear.issue(issueId);
+    const state = await issue.state;
     const labels = await issue.labels();
     return {
       id: issue.id,
       identifier: issue.identifier,
       title: issue.title,
       description: issue.description || undefined,
-      state: (await issue.state)?.name || "Unknown",
+      state: state?.name || "Unknown",
       priority: issue.priority,
       labels: labels.nodes.map(l => l.name),
     };

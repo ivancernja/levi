@@ -3,6 +3,7 @@ import { executeLinearAction } from "@/lib/integrations/linear/executor";
 import { executeGitHubAction } from "@/lib/integrations/github/executor";
 import { executeNotionAction } from "@/lib/integrations/notion/executor";
 import { executeSlackAction } from "@/lib/integrations/slack/executor";
+import { executeCodeGeneration } from "@/lib/integrations/daytona/executor";
 
 export interface ActionResult {
   success: boolean;
@@ -34,6 +35,9 @@ export async function executeAction(action: Action): Promise<ActionResult> {
     case "slack.message.send":
     case "slack.message.reply":
       return executeSlackAction(action.workspaceId, type, payload);
+
+    case "code.generate":
+      return executeCodeGeneration(action.workspaceId, payload);
 
     default:
       return {

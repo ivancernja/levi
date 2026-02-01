@@ -295,6 +295,18 @@ function toolCallToAction(
         },
       };
 
+    case "propose_code_generation":
+      return {
+        type: "code.generate",
+        payload: input,
+        preview: {
+          repoName: input.repoName,
+          description: input.description,
+          specs: input.specs,
+          framework: input.framework || "nextjs",
+        },
+      };
+
     default:
       return null;
   }
