@@ -96,9 +96,20 @@ async function handleApprove(
     text: getProgressMessage(action.type as string, "started"),
   });
 
+  // Create progress callback for multi-step actions
+  const onProgress = async (message: string) => {
+    if (progressMsg.ts) {
+      await slack.chat.postMessage({
+        channel: payload.channel.id,
+        thread_ts: threadTs,
+        text: message,
+      });
+    }
+  };
+
   // Execute the action
   try {
-    const result = await executeAction(action);
+    const result = await executeAction(action, onProgress);
 
     // Update action with result
     await db

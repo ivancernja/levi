@@ -1,4 +1,4 @@
-import { generateAndPushCode } from "./client";
+import { generateAndPushCode, ProgressCallback } from "./client";
 import { getGitHubIntegration } from "@/lib/integrations/github/client";
 import { db, workspaces } from "@/lib/db";
 import { eq } from "drizzle-orm";
@@ -7,7 +7,8 @@ import { DEFAULT_MODEL } from "@/lib/ai/client";
 
 export async function executeCodeGeneration(
   workspaceId: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  onProgress?: ProgressCallback
 ): Promise<ActionResult> {
   // Get GitHub credentials
   const githubIntegration = await getGitHubIntegration(workspaceId);
@@ -49,6 +50,7 @@ export async function executeCodeGeneration(
       githubUsername,
       openrouterApiKey: metadata.openrouterApiKey,
       model: metadata.model || DEFAULT_MODEL,
+      onProgress,
     });
 
     if (result.success) {

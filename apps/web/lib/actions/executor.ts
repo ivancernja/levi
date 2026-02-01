@@ -12,7 +12,12 @@ export interface ActionResult {
   error?: string;
 }
 
-export async function executeAction(action: Action): Promise<ActionResult> {
+export type ProgressCallback = (message: string) => Promise<void>;
+
+export async function executeAction(
+  action: Action,
+  onProgress?: ProgressCallback
+): Promise<ActionResult> {
   const type = action.type as ActionType;
   const payload = action.payload as Record<string, unknown>;
 
@@ -37,7 +42,7 @@ export async function executeAction(action: Action): Promise<ActionResult> {
       return executeSlackAction(action.workspaceId, type, payload);
 
     case "code.generate":
-      return executeCodeGeneration(action.workspaceId, payload);
+      return executeCodeGeneration(action.workspaceId, payload, onProgress);
 
     default:
       return {

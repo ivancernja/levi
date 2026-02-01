@@ -8,6 +8,8 @@ export interface CodeGenerationResult {
   error?: string;
 }
 
+export type ProgressCallback = (message: string) => Promise<void>;
+
 interface GeneratedFile {
   path: string;
   content: string;
@@ -22,13 +24,16 @@ export async function generateAndPushCode(params: {
   githubUsername: string;
   openrouterApiKey: string;
   model: string;
+  onProgress?: ProgressCallback;
 }): Promise<CodeGenerationResult> {
-  const { repoName, description, specs, framework, githubToken, githubUsername, openrouterApiKey, model } = params;
+  const { repoName, description, specs, framework, githubToken, githubUsername, openrouterApiKey, model, onProgress } = params;
 
+  const progress = onProgress || (async () => {});
   let sandbox: Sandbox | null = null;
 
   try {
     // Step 1: Generate code using AI
+    await progress(":brain: generating code with ai...");
     const files = await generateCodeWithAI({
       repoName,
       description,
@@ -42,7 +47,10 @@ export async function generateAndPushCode(params: {
       return { success: false, error: "AI failed to generate code" };
     }
 
+    await progress(`:page_facing_up: generated ${files.length} files`);
+
     // Step 2: Create GitHub repo
+    await progress(":octocat: creating github repo...");
     const createRepoResponse = await fetch("https://api.github.com/user/repos", {
       method: "POST",
       headers: {
@@ -66,14 +74,17 @@ export async function generateAndPushCode(params: {
     const repoData = await createRepoResponse.json();
 
     // Step 3: Create sandbox and push code
+    await progress(":package: spinning up sandbox...");
     sandbox = await Sandbox.create({ apiKey: process.env.E2B_API_KEY });
 
     // Write files to sandbox
+    await progress(":writing_hand: writing files...");
     for (const file of files) {
       await sandbox.files.write(file.path, file.content);
     }
 
     // Initialize git and push
+    await progress(":rocket: pushing to github...");
     await sandbox.commands.run("git config --global user.email 'levi@bot.local'");
     await sandbox.commands.run("git config --global user.name 'Levi Bot'");
     await sandbox.commands.run(`cd /home/user && git init`);
