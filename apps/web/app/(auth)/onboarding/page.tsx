@@ -48,24 +48,42 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: 'var(--background)' }}
+    >
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold">Create your workspace</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-3xl" style={{ color: 'var(--accent)' }}>⬢</span>
+            <span className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>levi</span>
+          </div>
+          <h1 className="text-xl font-bold">Create your workspace</h1>
+          <p className="text-sm mt-2" style={{ color: 'var(--foreground-muted)' }}>
             Your team&apos;s home base
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <div
+              className="p-3 text-sm"
+              style={{
+                background: 'var(--error-muted)',
+                color: 'var(--error)',
+                borderRadius: '2px',
+              }}
+            >
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="name" className="block text-sm font-medium mb-1">
+            <label
+              htmlFor="name"
+              className="block text-xs uppercase tracking-wide mb-2"
+              style={{ color: 'var(--foreground-subtle)' }}
+            >
               Workspace name
             </label>
             <input
@@ -75,16 +93,22 @@ export default function OnboardingPage() {
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Acme Inc"
               required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+              className="w-full"
             />
           </div>
 
           <div>
-            <label htmlFor="slug" className="block text-sm font-medium mb-1">
+            <label
+              htmlFor="slug"
+              className="block text-xs uppercase tracking-wide mb-2"
+              style={{ color: 'var(--foreground-subtle)' }}
+            >
               Workspace URL
             </label>
             <div className="flex items-center">
-              <span className="text-gray-500 text-sm mr-1">levi.so/</span>
+              <span className="text-sm mr-1" style={{ color: 'var(--foreground-subtle)' }}>
+                levi.so/
+              </span>
               <input
                 id="slug"
                 type="text"
@@ -93,7 +117,7 @@ export default function OnboardingPage() {
                 placeholder="acme"
                 required
                 pattern="[a-z0-9-]+"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                className="flex-1"
               />
             </div>
           </div>
@@ -101,7 +125,7 @@ export default function OnboardingPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-3 bg-black text-white dark:bg-white dark:text-black rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="w-full btn btn-primary py-3 disabled:opacity-50"
           >
             {loading ? "Creating..." : "Create workspace"}
           </button>
