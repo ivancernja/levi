@@ -327,6 +327,194 @@ export const actionsRelations = relations(actions, ({ one }) => ({
 }));
 
 // ============================================================================
+// Event Stream Tables (for proactivity)
+// ============================================================================
+
+export type EventType =
+  // GitHub
+  | "github.pr.merged"
+  | "github.pr.opened"
+  | "github.pr.closed"
+  | "github.issue.opened"
+  | "github.issue.closed"
+  | "github.push"
+  // Linear
+  | "linear.issue.created"
+  | "linear.issue.updated"
+  | "linear.issue.completed"
+  | "linear.comment.created"
+  // Slack
+  | "slack.message"
+  | "slack.reaction"
+  // Notion
+  | "notion.page.updated"
+  | "notion.page.created";
+
+// All events from all integrations
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    type: text("type").notNull().$type<EventType>(),
+    source: text("source").notNull().$type<IntegrationType>(),
+    // External reference
+    externalId: text("external_id").notNull(), // e.g., PR number, issue ID
+    externalUrl: text("external_url"),
+    // Event payload
+    payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
+    // Actor who triggered the event
+    actorId: text("actor_id"),
+    actorName: text("actor_name"),
+    // Processing status
+    processed: boolean("processed").default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("events_workspace_type_idx").on(table.workspaceId, table.type),
+    index("events_workspace_processed_idx").on(table.workspaceId, table.processed),
+    index("events_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// Links between entities across tools (PR X relates to Issue Y)
+export const eventLinks = pgTable(
+  "event_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    // Source entity
+    sourceType: text("source_type").notNull(), // "github.pr", "linear.issue", etc.
+    sourceId: text("source_id").notNull(),
+    // Target entity
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    // How they're linked
+    linkType: text("link_type").notNull(), // "references", "closes", "related"
+    confidence: integer("confidence").default(100), // 0-100, for AI-detected links
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("event_links_source_idx").on(table.sourceType, table.sourceId),
+    index("event_links_target_idx").on(table.targetType, table.targetId),
+  ]
+);
+
+// ============================================================================
+// Proactivity Rules (agent-generated + user-defined)
+// ============================================================================
+
+export const rules = pgTable(
+  "rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    // Human-readable description
+    name: text("name").notNull(),
+    description: text("description"),
+    // Rule definition
+    trigger: text("trigger").notNull().$type<EventType>(), // What event triggers this
+    conditions: jsonb("conditions").$type<{
+      // Conditions that must be true
+      linkedEntityExists?: { type: string; status?: string };
+      actorIs?: string[];
+      payloadMatches?: Record<string, unknown>;
+      custom?: string; // AI-evaluatable condition
+    }>(),
+    // What to suggest
+    suggestionTemplate: jsonb("suggestion_template").notNull().$type<{
+      actionType: ActionType;
+      message: string; // Template with {{variables}}
+      payloadTemplate: Record<string, unknown>;
+    }>(),
+    // Rule settings
+    enabled: boolean("enabled").default(true),
+    isBuiltIn: boolean("is_built_in").default(false), // System rules vs user-created
+    // Stats for learning
+    timesTriggered: integer("times_triggered").default(0),
+    timesAccepted: integer("times_accepted").default(0),
+    timesDismissed: integer("times_dismissed").default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("rules_workspace_enabled_idx").on(table.workspaceId, table.enabled),
+    index("rules_trigger_idx").on(table.trigger),
+  ]
+);
+
+// Proactive suggestions sent to users
+export const suggestions = pgTable(
+  "suggestions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    ruleId: uuid("rule_id").references(() => rules.id, { onDelete: "set null" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+    // The suggestion
+    message: text("message").notNull(),
+    actionType: text("action_type").$type<ActionType>(),
+    actionPayload: jsonb("action_payload").$type<Record<string, unknown>>(),
+    // Delivery
+    slackChannelId: text("slack_channel_id"),
+    slackMessageTs: text("slack_message_ts"),
+    // Status
+    status: text("status").notNull().default("pending").$type<
+      "pending" | "accepted" | "dismissed" | "expired"
+    >(),
+    // Feedback
+    dismissReason: text("dismiss_reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    resolvedAt: timestamp("resolved_at"),
+  },
+  (table) => [
+    index("suggestions_workspace_status_idx").on(table.workspaceId, table.status),
+  ]
+);
+
+// ============================================================================
+// Event/Rule Relations
+// ============================================================================
+
+export const eventsRelations = relations(events, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [events.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const rulesRelations = relations(rules, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [rules.workspaceId],
+    references: [workspaces.id],
+  }),
+  suggestions: many(suggestions),
+}));
+
+export const suggestionsRelations = relations(suggestions, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [suggestions.workspaceId],
+    references: [workspaces.id],
+  }),
+  rule: one(rules, {
+    fields: [suggestions.ruleId],
+    references: [rules.id],
+  }),
+  event: one(events, {
+    fields: [suggestions.eventId],
+    references: [events.id],
+  }),
+}));
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -340,3 +528,10 @@ export type Conversation = typeof conversations.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Action = typeof actions.$inferSelect;
 export type NewAction = typeof actions.$inferInsert;
+export type Event = typeof events.$inferSelect;
+export type NewEvent = typeof events.$inferInsert;
+export type EventLink = typeof eventLinks.$inferSelect;
+export type Rule = typeof rules.$inferSelect;
+export type NewRule = typeof rules.$inferInsert;
+export type Suggestion = typeof suggestions.$inferSelect;
+export type NewSuggestion = typeof suggestions.$inferInsert;

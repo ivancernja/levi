@@ -111,4 +111,18 @@ export const indexMessageFunction = inngest.createFunction(
   }
 );
 
-export const functions = [executeActionFunction, indexMessageFunction];
+// Process events for proactive suggestions
+export const processEventFunction = inngest.createFunction(
+  { id: "process-event", retries: 1 },
+  { event: "event/created" },
+  async ({ event, step }) => {
+    const { eventId } = event.data as { eventId: string };
+
+    await step.run("process-event", async () => {
+      const { processEvent } = await import("@/lib/proactivity/engine");
+      await processEvent(eventId);
+    });
+  }
+);
+
+export const functions = [executeActionFunction, indexMessageFunction, processEventFunction];

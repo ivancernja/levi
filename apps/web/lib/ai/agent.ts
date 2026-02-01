@@ -29,7 +29,7 @@ interface ProcessMessageResult {
 }
 
 // Read tools that should be executed immediately and results fed back
-const READ_TOOLS = ["search_linear_issues", "get_linear_issue", "list_github_repos"];
+const READ_TOOLS = ["search_linear_issues", "get_linear_issue", "list_github_repos", "learn_rule"];
 
 export async function processMessage(
   input: ProcessMessageInput
@@ -190,6 +190,25 @@ async function executeReadTool(
     case "list_github_repos": {
       const repos = await listGitHubRepos(workspaceId, (args.limit as number) || 10);
       return { repos };
+    }
+    case "learn_rule": {
+      const { createRuleFromNaturalLanguage } = await import("@/lib/proactivity/engine");
+      const rule = await createRuleFromNaturalLanguage(
+        workspaceId,
+        args.description as string
+      );
+      if (rule) {
+        return {
+          success: true,
+          message: `learned! i'll now ${rule.name.toLowerCase()} when ${rule.trigger} happens.`,
+          rule: {
+            name: rule.name,
+            trigger: rule.trigger,
+            description: rule.description,
+          },
+        };
+      }
+      return { success: false, error: "couldn't learn that rule, maybe try rephrasing?" };
     }
     default:
       return { error: "Unknown tool" };

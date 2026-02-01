@@ -21,6 +21,7 @@
     "@octokit/webhooks": "^13.4.1",
     "@slack/bolt": "^4.1.0",
     "@slack/web-api": "^7.8.0",
+    "@vercel/functions": "^3.4.0",
     "better-auth": "^1.1.14",
     "drizzle-orm": "^0.38.3",
     "inngest": "^3.29.0",

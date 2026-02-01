@@ -48,6 +48,15 @@ export async function POST(request: NextRequest) {
       } else if (actionId.startsWith("action_view_")) {
         const id = actionId.replace("action_view_", "");
         waitUntil(handleViewChanges(payload, id).catch(console.error));
+      } else if (actionId.startsWith("suggestion_accept_")) {
+        const id = actionId.replace("suggestion_accept_", "");
+        waitUntil(handleSuggestionResponse(payload, id, "accept").catch(console.error));
+      } else if (actionId.startsWith("suggestion_dismiss_")) {
+        const id = actionId.replace("suggestion_dismiss_", "");
+        waitUntil(handleSuggestionResponse(payload, id, "dismiss").catch(console.error));
+      } else if (actionId.startsWith("suggestion_disable_")) {
+        const id = actionId.replace("suggestion_disable_", "");
+        waitUntil(handleSuggestionResponse(payload, id, "disable").catch(console.error));
       }
     }
   }
@@ -172,4 +181,54 @@ async function handleViewChanges(
       ],
     },
   });
+}
+
+async function handleSuggestionResponse(
+  payload: {
+    team: { id: string };
+    channel: { id: string };
+    message: { ts: string };
+  },
+  suggestionId: string,
+  action: "accept" | "dismiss" | "disable"
+) {
+  const workspace = await findWorkspaceBySlackTeam(payload.team.id);
+  if (!workspace) return;
+
+  const { handleSuggestionResponse: processSuggestion } = await import(
+    "@/lib/proactivity/engine"
+  );
+
+  await processSuggestion(suggestionId, action);
+
+  // Update the Slack message to show the response
+  const slack = await getSlackClient(workspace.id);
+  if (!slack) return;
+
+  const emoji = action === "accept" ? "✅" : action === "dismiss" ? "👍" : "🔕";
+  const text =
+    action === "accept"
+      ? "on it!"
+      : action === "dismiss"
+        ? "got it, nevermind"
+        : "won't ask again";
+
+  try {
+    await slack.chat.update({
+      channel: payload.channel.id,
+      ts: payload.message.ts,
+      text: `${emoji} ${text}`,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `${emoji} ${text}`,
+          },
+        },
+      ],
+    });
+  } catch (error) {
+    console.error("Failed to update suggestion message:", error);
+  }
 }

@@ -335,6 +335,25 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "learn_rule",
+      description:
+        "Learn a new proactive behavior rule. Use this when users say things like 'when X happens, do Y' or 'remind me to X when Y' or 'always suggest X after Y'. This teaches Levi to proactively suggest actions based on events.",
+      parameters: {
+        type: "object",
+        properties: {
+          description: {
+            type: "string",
+            description:
+              "Natural language description of the rule (e.g., 'when a PR is merged, ask if I want to close the related Linear issue')",
+          },
+        },
+        required: ["description"],
+      },
+    },
+  },
 ];
 
 export type ToolName = (typeof AGENT_TOOLS)[number]["function"]["name"];
