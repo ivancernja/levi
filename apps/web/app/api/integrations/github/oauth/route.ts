@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db, integrations, workspaceMembers } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { getBaseURL } from "@/lib/utils/url";
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID!;
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET!;
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const redirectUri = `${process.env.BETTER_AUTH_URL}/api/integrations/github/oauth`;
+    const redirectUri = `${getBaseURL()}/api/integrations/github/oauth`;
 
     const githubUrl = new URL("https://github.com/login/oauth/authorize");
     githubUrl.searchParams.set("client_id", GITHUB_CLIENT_ID);
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
         client_id: GITHUB_CLIENT_ID,
         client_secret: GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: `${process.env.BETTER_AUTH_URL}/api/integrations/github/oauth`,
+        redirect_uri: `${getBaseURL()}/api/integrations/github/oauth`,
       }),
     }
   );

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db, integrations, workspaceMembers } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { getBaseURL } from "@/lib/utils/url";
 
 const SLACK_CLIENT_ID = process.env.SLACK_CLIENT_ID!;
 const SLACK_CLIENT_SECRET = process.env.SLACK_CLIENT_SECRET!;
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       "commands",
     ].join(",");
 
-    const redirectUri = `${process.env.BETTER_AUTH_URL}/api/integrations/slack/oauth`;
+    const redirectUri = `${getBaseURL()}/api/integrations/slack/oauth`;
 
     const slackUrl = new URL("https://slack.com/oauth/v2/authorize");
     slackUrl.searchParams.set("client_id", SLACK_CLIENT_ID);
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
       client_id: SLACK_CLIENT_ID,
       client_secret: SLACK_CLIENT_SECRET,
       code,
-      redirect_uri: `${process.env.BETTER_AUTH_URL}/api/integrations/slack/oauth`,
+      redirect_uri: `${getBaseURL()}/api/integrations/slack/oauth`,
     }),
   });
 

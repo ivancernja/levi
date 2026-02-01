@@ -2,18 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-
-// Ensure baseURL always has protocol
-const getBaseURL = () => {
-  if (process.env.BETTER_AUTH_URL) {
-    const url = process.env.BETTER_AUTH_URL;
-    return url.startsWith("http") ? url : `https://${url}`;
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  return "http://localhost:3000";
-};
+import { getBaseURL } from "@/lib/utils/url";
 
 const baseURL = getBaseURL();
 

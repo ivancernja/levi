@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db, integrations, workspaceMembers } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { getBaseURL } from "@/lib/utils/url";
 
 const LINEAR_CLIENT_ID = process.env.LINEAR_CLIENT_ID!;
 const LINEAR_CLIENT_SECRET = process.env.LINEAR_CLIENT_SECRET!;
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const redirectUri = `${process.env.BETTER_AUTH_URL}/api/integrations/linear/oauth`;
+    const redirectUri = `${getBaseURL()}/api/integrations/linear/oauth`;
 
     const linearUrl = new URL("https://linear.app/oauth/authorize");
     linearUrl.searchParams.set("client_id", LINEAR_CLIENT_ID);
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
       client_id: LINEAR_CLIENT_ID,
       client_secret: LINEAR_CLIENT_SECRET,
       code,
-      redirect_uri: `${process.env.BETTER_AUTH_URL}/api/integrations/linear/oauth`,
+      redirect_uri: `${getBaseURL()}/api/integrations/linear/oauth`,
       grant_type: "authorization_code",
     }),
   });

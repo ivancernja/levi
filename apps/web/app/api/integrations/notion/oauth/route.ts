@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db, integrations, workspaceMembers } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { getBaseURL } from "@/lib/utils/url";
 
 const NOTION_CLIENT_ID = process.env.NOTION_CLIENT_ID!;
 const NOTION_CLIENT_SECRET = process.env.NOTION_CLIENT_SECRET!;
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const redirectUri = `${process.env.BETTER_AUTH_URL}/api/integrations/notion/oauth`;
+    const redirectUri = `${getBaseURL()}/api/integrations/notion/oauth`;
 
     const notionUrl = new URL("https://api.notion.com/v1/oauth/authorize");
     notionUrl.searchParams.set("client_id", NOTION_CLIENT_ID);
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
     body: JSON.stringify({
       grant_type: "authorization_code",
       code,
-      redirect_uri: `${process.env.BETTER_AUTH_URL}/api/integrations/notion/oauth`,
+      redirect_uri: `${getBaseURL()}/api/integrations/notion/oauth`,
     }),
   });
 
