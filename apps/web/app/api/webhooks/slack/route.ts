@@ -4,7 +4,7 @@ import { findWorkspaceBySlackTeam, getSlackClient } from "@/lib/integrations/sla
 import { buildReplyBlocks } from "@/lib/integrations/slack/blocks";
 import { processMessage } from "@/lib/ai/agent";
 import { db, conversations, messages, actions } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -54,6 +54,15 @@ async function handleAppMention(
     user: string;
   }
 ) {
+  // Deduplicate: check if we already processed this message
+  const existingMessage = await db.query.messages.findFirst({
+    where: eq(messages.externalId, event.ts),
+  });
+  if (existingMessage) {
+    console.log("Already processed message:", event.ts);
+    return;
+  }
+
   // Find workspace by Slack team
   const workspace = await findWorkspaceBySlackTeam(teamId);
   if (!workspace) {
