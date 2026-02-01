@@ -53,7 +53,7 @@ export async function searchLinearIssues(
   if (!linear) return [];
 
   try {
-    const issues = await linear.issueSearch({ query, first: limit });
+    const issues = await linear.issueSearch({ query });
     const results = [];
     for (const issue of issues.nodes) {
       const state = await issue.state;

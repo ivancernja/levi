@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySlackRequest } from "@/lib/integrations/slack/verify";
 import { getSlackClient, findWorkspaceBySlackTeam } from "@/lib/integrations/slack/client";
-import { buildConfirmationBlocks } from "@/lib/integrations/slack/blocks";
 import { executeAction } from "@/lib/actions/executor";
 import { db, actions } from "@/lib/db";
 import { eq } from "drizzle-orm";
@@ -79,6 +78,8 @@ async function handleApprove(
     return;
   }
 
+  const threadTs = payload.message.thread_ts || payload.message.ts;
+
   // Update action status to approved
   await db
     .update(actions)
@@ -87,6 +88,13 @@ async function handleApprove(
       resolvedAt: new Date(),
     })
     .where(eq(actions.id, actionId));
+
+  // Post progress update
+  const progressMsg = await slack.chat.postMessage({
+    channel: payload.channel.id,
+    thread_ts: threadTs,
+    text: getProgressMessage(action.type as string, "started"),
+  });
 
   // Execute the action
   try {
@@ -102,34 +110,59 @@ async function handleApprove(
       })
       .where(eq(actions.id, actionId));
 
-    // Post confirmation
-    const blocks = buildConfirmationBlocks(action, true, result.url);
-
-    await slack.chat.postMessage({
-      channel: payload.channel.id,
-      thread_ts: payload.message.thread_ts || payload.message.ts,
-      text: "Done.",
-      blocks,
-    });
+    // Update progress message
+    if (progressMsg.ts) {
+      await slack.chat.update({
+        channel: payload.channel.id,
+        ts: progressMsg.ts,
+        text: getProgressMessage(action.type as string, "done", result.url),
+      });
+    }
   } catch (error) {
     // Update action as failed
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
     await db
       .update(actions)
       .set({
         status: "failed",
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errorMsg,
       })
       .where(eq(actions.id, actionId));
 
-    const blocks = buildConfirmationBlocks(action, false);
-
-    await slack.chat.postMessage({
-      channel: payload.channel.id,
-      thread_ts: payload.message.thread_ts || payload.message.ts,
-      text: "Failed to execute action.",
-      blocks,
-    });
+    // Update progress message with error
+    if (progressMsg.ts) {
+      await slack.chat.update({
+        channel: payload.channel.id,
+        ts: progressMsg.ts,
+        text: `:x: failed: ${errorMsg}`,
+      });
+    }
   }
+}
+
+function getProgressMessage(actionType: string, status: "started" | "done", url?: string): string {
+  const actionNames: Record<string, string> = {
+    "linear.issue.create": "creating linear issue",
+    "linear.issue.update": "updating linear issue",
+    "github.repo.create": "creating github repo",
+    "github.pr.create": "drafting PR",
+    "github.issue.create": "creating github issue",
+    "notion.page.create": "creating notion page",
+    "notion.page.update": "updating notion page",
+    "slack.message.send": "sending message",
+    "code.generate": "generating code & pushing to github",
+  };
+
+  const name = actionNames[actionType] || actionType;
+
+  if (status === "started") {
+    return `:hourglass_flowing_sand: ${name}...`;
+  }
+
+  if (url) {
+    return `:white_check_mark: done - <${url}|view>`;
+  }
+  return `:white_check_mark: done`;
 }
 
 async function handleReject(
