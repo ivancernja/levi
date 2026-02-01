@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
 
   const payload = JSON.parse(payloadStr);
 
+  console.log("Interaction received", { type: payload.type, actions: payload.actions?.map((a: { action_id: string }) => a.action_id) });
+
   if (payload.type === "block_actions") {
     for (const slackAction of payload.actions) {
       const actionId = slackAction.action_id as string;
@@ -64,15 +66,23 @@ async function handleApprove(
   },
   actionId: string
 ) {
+  console.log("handleApprove called", { actionId, teamId: payload.team.id });
+
   const workspace = await findWorkspaceBySlackTeam(payload.team.id);
-  if (!workspace) return;
+  if (!workspace) {
+    console.log("No workspace found for team", payload.team.id);
+    return;
+  }
 
   // Get the action
   const action = await db.query.actions.findFirst({
     where: eq(actions.id, actionId),
   });
 
+  console.log("Action found:", { actionId, status: action?.status, type: action?.type });
+
   if (!action || action.status !== "pending") {
+    console.log("Action not pending or not found", { actionId, status: action?.status });
     return;
   }
 
@@ -88,6 +98,7 @@ async function handleApprove(
     .where(eq(actions.id, actionId));
 
   // Send to Inngest for background execution with Slack context
+  console.log("Sending to Inngest", { actionId, channelId: payload.channel.id, threadTs });
   await inngest.send({
     name: "action/execute",
     data: {
@@ -99,6 +110,7 @@ async function handleApprove(
       },
     },
   });
+  console.log("Sent to Inngest successfully");
 }
 
 async function handleReject(
