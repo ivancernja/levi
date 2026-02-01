@@ -5,7 +5,7 @@ import { getRelevantContext, getRecentMessages } from "@/lib/context/manager";
 import { db, integrations, workspaces, actions } from "@/lib/db";
 import { eq, desc, and } from "drizzle-orm";
 import type { ActionType, WorkspaceMetadata } from "@/lib/db/schema";
-import { searchLinearIssues, getLinearIssue } from "@/lib/integrations/linear/client";
+import { searchLinearIssues, listLinearIssues, getLinearActiveCycle, getLinearIssue } from "@/lib/integrations/linear/client";
 import {
   listGitHubRepos,
   searchGitHubIssues,
@@ -57,6 +57,8 @@ interface ProcessMessageResult {
 const READ_TOOLS = [
   // Linear
   "search_linear_issues",
+  "list_linear_issues",
+  "get_linear_sprint",
   "get_linear_issue",
   // GitHub
   "list_github_repos",
@@ -273,6 +275,20 @@ async function executeReadTool(
       );
       return { issues: results };
     }
+    case "list_linear_issues": {
+      const results = await listLinearIssues(workspaceId, {
+        limit: (args.limit as number) || 10,
+        teamKey: args.teamKey as string | undefined,
+      });
+      return { issues: results };
+    }
+    case "get_linear_sprint": {
+      const results = await getLinearActiveCycle(workspaceId);
+      if (results.length === 0) {
+        return { message: "No active sprint/cycle found, or no issues in the current sprint." };
+      }
+      return { sprint_issues: results };
+    }
     case "get_linear_issue": {
       const issue = await getLinearIssue(workspaceId, args.issueId as string);
       return issue || { error: "Issue not found" };
@@ -475,6 +491,18 @@ function toolCallToAction(
         },
       };
 
+    case "propose_github_pr_with_files":
+      return {
+        type: "github.pr.create_with_files",
+        payload: input,
+        preview: {
+          repo: input.repo,
+          title: input.title,
+          body: input.body,
+          files: (input.files as Array<{ path: string }>)?.map(f => f.path) || [],
+        },
+      };
+
     case "propose_github_issue":
       return {
         type: "github.issue.create",
@@ -549,6 +577,10 @@ function generateReplyFromActions(actions: ProposedAction[]): string {
         return `I'll create a new Linear issue: "${action.preview.title}".`;
       case "github.pr.create":
         return `I'll draft a PR: "${action.preview.title}".`;
+      case "github.pr.create_with_files": {
+        const fileCount = (action.preview.files as string[] | undefined)?.length || 0;
+        return `I'll create a PR with ${fileCount} file(s): "${action.preview.title}".`;
+      }
       case "github.issue.create":
         return `I'll create a GitHub issue: "${action.preview.title}".`;
       case "notion.page.update":

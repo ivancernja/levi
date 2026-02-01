@@ -1,4 +1,4 @@
-import { getNotionClient } from "./client";
+import { getNotionClient, findOrCreateNotionParentPage } from "./client";
 import type { ActionResult } from "@/lib/actions/executor";
 
 export async function executeNotionAction(
@@ -46,15 +46,20 @@ export async function executeNotionAction(
     }
 
     if (type === "notion.page.create") {
-      const parentId = payload.parentId as string | undefined;
+      let parentId = payload.parentId as string | undefined;
       const title = payload.title as string;
       const content = payload.content as string;
 
+      // If no parent provided, try to find a suitable one
       if (!parentId) {
-        return {
-          success: false,
-          error: "Parent page ID is required to create a Notion page",
-        };
+        const foundParentId = await findOrCreateNotionParentPage(workspaceId);
+        if (!foundParentId) {
+          return {
+            success: false,
+            error: "Could not find a parent page in Notion. Please specify a parentId or create a 'Levi' page in your Notion workspace.",
+          };
+        }
+        parentId = foundParentId;
       }
 
       const page = await notion.pages.create({

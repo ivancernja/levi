@@ -351,3 +351,90 @@ export async function listNotionDatabases(
     return [];
   }
 }
+
+export async function listNotionWorkspacePages(
+  workspaceId: string,
+  limit: number = 10
+): Promise<NotionPage[]> {
+  const notion = await getNotionClient(workspaceId);
+  if (!notion) return [];
+
+  try {
+    // Search for top-level pages (workspace parent)
+    const response = await notion.search({
+      filter: { property: "object", value: "page" },
+      page_size: limit,
+      sort: {
+        direction: "descending",
+        timestamp: "last_edited_time",
+      },
+    });
+
+    return response.results
+      .filter((result): result is PageObjectResponse =>
+        result.object === "page" && "properties" in result
+      )
+      .map(page => ({
+        id: page.id,
+        title: extractTitle(page),
+        url: page.url,
+        createdTime: page.created_time,
+        lastEditedTime: page.last_edited_time,
+        createdBy: page.created_by.id,
+        lastEditedBy: page.last_edited_by.id,
+        parent: page.parent.type === "database_id"
+          ? { type: "database" as const, id: page.parent.database_id }
+          : page.parent.type === "page_id"
+            ? { type: "page" as const, id: page.parent.page_id }
+            : { type: "workspace" as const },
+        properties: page.properties as Record<string, unknown>,
+      }));
+  } catch (error) {
+    console.error("Notion list workspace pages error:", error);
+    return [];
+  }
+}
+
+export async function findOrCreateNotionParentPage(
+  workspaceId: string,
+  preferredName?: string
+): Promise<string | null> {
+  const notion = await getNotionClient(workspaceId);
+  if (!notion) return null;
+
+  try {
+    // First, search for a page with the preferred name or "Levi"
+    const searchNames = preferredName
+      ? [preferredName, "Levi", "Levi Notes", "AI Notes"]
+      : ["Levi", "Levi Notes", "AI Notes"];
+
+    for (const name of searchNames) {
+      const results = await notion.search({
+        query: name,
+        filter: { property: "object", value: "page" },
+        page_size: 5,
+      });
+
+      const match = results.results.find((result): result is PageObjectResponse => {
+        if (result.object !== "page" || !("properties" in result)) return false;
+        const title = extractTitle(result);
+        return title.toLowerCase().includes(name.toLowerCase());
+      });
+
+      if (match) {
+        return match.id;
+      }
+    }
+
+    // No suitable parent found - get any top-level page
+    const topLevelPages = await listNotionWorkspacePages(workspaceId, 1);
+    if (topLevelPages.length > 0) {
+      return topLevelPages[0].id;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Notion find parent page error:", error);
+    return null;
+  }
+}

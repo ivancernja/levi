@@ -53,7 +53,51 @@ export async function searchLinearIssues(
   if (!linear) return [];
 
   try {
-    const issues = await linear.issueSearch({ query });
+    // If query is empty or very generic, list recent issues instead
+    if (!query || query.trim().length < 2) {
+      return listLinearIssues(workspaceId, { limit });
+    }
+
+    const issues = await linear.issueSearch({ query, first: limit });
+    const results = [];
+    for (const issue of issues.nodes.slice(0, limit)) {
+      const state = await issue.state;
+      results.push({
+        id: issue.id,
+        identifier: issue.identifier,
+        title: issue.title,
+        description: issue.description || undefined,
+        state: state?.name || "Unknown",
+        priority: issue.priority,
+      });
+    }
+    return results;
+  } catch (error) {
+    console.error("Linear search error:", error);
+    return [];
+  }
+}
+
+export async function listLinearIssues(
+  workspaceId: string,
+  options: {
+    limit?: number;
+    state?: "active" | "backlog" | "completed" | "canceled";
+    teamKey?: string;
+  } = {}
+): Promise<Array<{ id: string; identifier: string; title: string; description?: string; state: string; priority: number }>> {
+  const linear = await getLinearClient(workspaceId);
+  if (!linear) return [];
+
+  const { limit = 10 } = options;
+
+  try {
+    // Get recent issues sorted by updated time
+    const issues = await linear.issues({
+      first: limit,
+      orderBy: "updatedAt" as any,
+    });
+
     const results = [];
     for (const issue of issues.nodes) {
       const state = await issue.state;
@@ -68,7 +112,42 @@ export async function searchLinearIssues(
     }
     return results;
   } catch (error) {
-    console.error("Linear search error:", error);
+    console.error("Linear list issues error:", error);
+    return [];
+  }
+}
+
+export async function getLinearActiveCycle(
+  workspaceId: string
+): Promise<Array<{ id: string; identifier: string; title: string; state: string; priority: number }>> {
+  const linear = await getLinearClient(workspaceId);
+  if (!linear) return [];
+
+  try {
+    // Get active cycles across all teams
+    const teams = await linear.teams();
+    const results = [];
+
+    for (const team of teams.nodes) {
+      const activeCycle = await team.activeCycle;
+      if (activeCycle) {
+        const issues = await activeCycle.issues({ first: 50 });
+        for (const issue of issues.nodes) {
+          const state = await issue.state;
+          results.push({
+            id: issue.id,
+            identifier: issue.identifier,
+            title: issue.title,
+            state: state?.name || "Unknown",
+            priority: issue.priority,
+          });
+        }
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Linear get active cycle error:", error);
     return [];
   }
 }

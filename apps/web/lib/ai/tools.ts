@@ -110,7 +110,7 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
     function: {
       name: "propose_github_pr",
       description:
-        "Propose drafting a GitHub pull request. The user will need to approve before it's created.",
+        "Propose drafting a GitHub pull request. Only use this if the branch already exists with commits. For creating new features, use propose_github_pr_with_files instead.",
       parameters: {
         type: "object",
         properties: {
@@ -135,7 +135,59 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
             description: "Head branch with changes",
           },
         },
-        required: ["repo", "title", "body"],
+        required: ["repo", "title", "body", "headBranch"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_github_pr_with_files",
+      description:
+        "Propose creating a PR with new files. This creates a branch, commits files, and opens a PR. Use this to add features, blog posts, or any new code to a repo.",
+      parameters: {
+        type: "object",
+        properties: {
+          repo: {
+            type: "string",
+            description: "Repository in format 'owner/repo'",
+          },
+          title: {
+            type: "string",
+            description: "PR title",
+          },
+          body: {
+            type: "string",
+            description: "PR description/body",
+          },
+          baseBranch: {
+            type: "string",
+            description: "Base branch (default: main)",
+          },
+          branchName: {
+            type: "string",
+            description: "Branch name for the PR (auto-generated if not provided)",
+          },
+          files: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                path: {
+                  type: "string",
+                  description: "File path (e.g., 'src/pages/blog.tsx')",
+                },
+                content: {
+                  type: "string",
+                  description: "File content",
+                },
+              },
+              required: ["path", "content"],
+            },
+            description: "Files to create/update in the PR",
+          },
+        },
+        required: ["repo", "title", "body", "files"],
       },
     },
   },
@@ -266,6 +318,39 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
           },
         },
         required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_linear_issues",
+      description:
+        "List recent Linear issues. Use this when asked about 'all issues', 'any issues', or to get an overview of the issue backlog.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "Max results to return (default: 10)",
+          },
+          teamKey: {
+            type: "string",
+            description: "Filter to a specific team (e.g., 'ENG', 'HYP')",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_linear_sprint",
+      description:
+        "Get issues in the current active sprint/cycle. Use when asked about 'the sprint', 'current cycle', or 'what's in progress'.",
+      parameters: {
+        type: "object",
+        properties: {},
       },
     },
   },

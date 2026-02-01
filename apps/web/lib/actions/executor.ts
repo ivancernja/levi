@@ -29,6 +29,9 @@ export async function executeAction(
 
     case "github.repo.create":
     case "github.pr.create":
+    case "github.pr.create_with_files":
+    case "github.branch.create":
+    case "github.file.create":
     case "github.issue.create":
     case "github.comment.create":
       return executeGitHubAction(action.workspaceId, type, payload);

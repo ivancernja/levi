@@ -411,3 +411,104 @@ export async function getGitHubFileContent(
     return null;
   }
 }
+
+export async function createGitHubBranch(
+  workspaceId: string,
+  owner: string,
+  repo: string,
+  branchName: string,
+  fromBranch: string = "main"
+): Promise<{ success: boolean; sha?: string; error?: string }> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return { success: false, error: "GitHub not connected" };
+
+  try {
+    // Get the SHA of the source branch
+    const { data: refData } = await github.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${fromBranch}`,
+    });
+
+    // Create new branch
+    await github.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${branchName}`,
+      sha: refData.object.sha,
+    });
+
+    return { success: true, sha: refData.object.sha };
+  } catch (error) {
+    console.error("GitHub create branch error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create branch",
+    };
+  }
+}
+
+export async function createOrUpdateGitHubFile(
+  workspaceId: string,
+  owner: string,
+  repo: string,
+  path: string,
+  content: string,
+  message: string,
+  branch: string
+): Promise<{ success: boolean; sha?: string; error?: string }> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return { success: false, error: "GitHub not connected" };
+
+  try {
+    // Check if file exists to get its SHA (needed for updates)
+    let existingSha: string | undefined;
+    try {
+      const { data } = await github.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref: branch,
+      });
+      if (!Array.isArray(data) && data.type === "file") {
+        existingSha = data.sha;
+      }
+    } catch {
+      // File doesn't exist, that's fine for creation
+    }
+
+    const { data } = await github.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path,
+      message,
+      content: Buffer.from(content).toString("base64"),
+      branch,
+      sha: existingSha,
+    });
+
+    return { success: true, sha: data.commit.sha };
+  } catch (error) {
+    console.error("GitHub create/update file error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create/update file",
+    };
+  }
+}
+
+export async function getDefaultBranch(
+  workspaceId: string,
+  owner: string,
+  repo: string
+): Promise<string> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return "main";
+
+  try {
+    const { data } = await github.repos.get({ owner, repo });
+    return data.default_branch;
+  } catch {
+    return "main";
+  }
+}

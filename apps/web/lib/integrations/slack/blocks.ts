@@ -33,6 +33,21 @@ const ACTION_CONFIGS: Record<ActionType, ActionCardConfig> = {
     title: "Draft Pull Request",
     color: "#238636",
   },
+  "github.pr.create_with_files": {
+    icon: ":git-merge:",
+    title: "Create PR with Files",
+    color: "#238636",
+  },
+  "github.branch.create": {
+    icon: ":twisted_rightwards_arrows:",
+    title: "Create Branch",
+    color: "#238636",
+  },
+  "github.file.create": {
+    icon: ":page_facing_up:",
+    title: "Create File",
+    color: "#238636",
+  },
   "github.issue.create": {
     icon: ":bug:",
     title: "Create GitHub Issue",
@@ -214,10 +229,11 @@ export function buildActionCard(action: Action): KnownBlock[] {
           ],
         });
       }
-    } else if (action.type === "github.pr.create") {
+    } else if (action.type === "github.pr.create" || action.type === "github.pr.create_with_files") {
       const title = preview.title as string;
       const body = preview.body as string;
       const repo = preview.repo as string;
+      const files = preview.files as string[] | undefined;
 
       blocks.push({
         type: "section",
@@ -226,6 +242,18 @@ export function buildActionCard(action: Action): KnownBlock[] {
           text: `*${title}*\n\n${body || "_No description_"}`,
         },
       } as SectionBlock);
+
+      if (files && files.length > 0) {
+        blocks.push({
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `Files: ${files.slice(0, 5).map(f => `\`${f}\``).join(", ")}${files.length > 5 ? ` +${files.length - 5} more` : ""}`,
+            },
+          ],
+        });
+      }
 
       if (repo) {
         blocks.push({
@@ -406,7 +434,12 @@ function getApproveButtonText(type: ActionType): string {
     case "github.repo.create":
       return "Create repo";
     case "github.pr.create":
-      return "Draft PR";
+    case "github.pr.create_with_files":
+      return "Create PR";
+    case "github.branch.create":
+      return "Create branch";
+    case "github.file.create":
+      return "Create file";
     case "github.issue.create":
       return "Create issue";
     case "notion.page.update":
