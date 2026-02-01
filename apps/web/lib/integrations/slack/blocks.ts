@@ -1,0 +1,317 @@
+import type { KnownBlock, Button, SectionBlock } from "@slack/web-api";
+import type { Action, ActionType } from "@/lib/db/schema";
+
+interface ActionCardConfig {
+  icon: string;
+  title: string;
+  color: string;
+}
+
+const ACTION_CONFIGS: Record<ActionType, ActionCardConfig> = {
+  "linear.issue.update": {
+    icon: ":linear:",
+    title: "Update Linear Issue",
+    color: "#5E6AD2",
+  },
+  "linear.issue.create": {
+    icon: ":linear:",
+    title: "Create Linear Issue",
+    color: "#5E6AD2",
+  },
+  "linear.comment.create": {
+    icon: ":linear:",
+    title: "Add Linear Comment",
+    color: "#5E6AD2",
+  },
+  "github.pr.create": {
+    icon: ":github:",
+    title: "Draft Pull Request",
+    color: "#238636",
+  },
+  "github.issue.create": {
+    icon: ":github:",
+    title: "Create GitHub Issue",
+    color: "#238636",
+  },
+  "github.comment.create": {
+    icon: ":github:",
+    title: "Add GitHub Comment",
+    color: "#238636",
+  },
+  "notion.page.update": {
+    icon: ":notion:",
+    title: "Update Notion Page",
+    color: "#000000",
+  },
+  "notion.page.create": {
+    icon: ":notion:",
+    title: "Create Notion Page",
+    color: "#000000",
+  },
+  "slack.message.send": {
+    icon: ":slack:",
+    title: "Send Slack Message",
+    color: "#4A154B",
+  },
+  "slack.message.reply": {
+    icon: ":slack:",
+    title: "Reply in Thread",
+    color: "#4A154B",
+  },
+};
+
+export function buildActionCard(action: Action): KnownBlock[] {
+  const config = ACTION_CONFIGS[action.type as ActionType];
+  const preview = action.preview as Record<string, unknown> | null;
+
+  const blocks: KnownBlock[] = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `${config.icon} *${config.title}*`,
+      },
+    } as SectionBlock,
+  ];
+
+  // Add preview content based on action type
+  if (preview) {
+    if (action.type === "linear.issue.update") {
+      const issueId = preview.issueId as string;
+      const title = preview.title as string;
+      const description = preview.description as string;
+      const changes = preview.changes as Record<string, unknown>;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${issueId}*\n${title}`,
+        },
+      } as SectionBlock);
+
+      if (description) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: description,
+          },
+        } as SectionBlock);
+      }
+
+      if (changes) {
+        const changesList = Object.entries(changes)
+          .map(([key, value]) => `• *${key}:* ${value}`)
+          .join("\n");
+        blocks.push({
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `Changes:\n${changesList}`,
+            },
+          ],
+        });
+      }
+    } else if (action.type === "github.pr.create") {
+      const title = preview.title as string;
+      const body = preview.body as string;
+      const repo = preview.repo as string;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${title}*\n\n${body || "_No description_"}`,
+        },
+      } as SectionBlock);
+
+      if (repo) {
+        blocks.push({
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `Repository: \`${repo}\``,
+            },
+          ],
+        });
+      }
+    } else if (action.type === "notion.page.update") {
+      const pageTitle = preview.pageTitle as string;
+      const instructions = preview.instructions as string;
+      const content = preview.content as string;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Agent instructions:*\n${instructions}`,
+        },
+      } as SectionBlock);
+
+      if (pageTitle) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*${pageTitle}*`,
+          },
+        } as SectionBlock);
+      }
+
+      if (content) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: content.slice(0, 500) + (content.length > 500 ? "..." : ""),
+          },
+        } as SectionBlock);
+      }
+    } else if (
+      action.type === "slack.message.send" ||
+      action.type === "slack.message.reply"
+    ) {
+      const channel = preview.channel as string;
+      const message = preview.message as string;
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: message,
+        },
+      } as SectionBlock);
+
+      if (channel) {
+        blocks.push({
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `Channel: <#${channel}>`,
+            },
+          ],
+        });
+      }
+    }
+  }
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View changes",
+        },
+        action_id: `action_view_${action.id}`,
+      } as Button,
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "Reject",
+        },
+        style: "danger",
+        action_id: `action_reject_${action.id}`,
+      } as Button,
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: getApproveButtonText(action.type as ActionType),
+        },
+        style: "primary",
+        action_id: `action_approve_${action.id}`,
+      } as Button,
+    ],
+  });
+
+  return blocks;
+}
+
+function getApproveButtonText(type: ActionType): string {
+  switch (type) {
+    case "linear.issue.update":
+      return "Update issue";
+    case "linear.issue.create":
+      return "Create issue";
+    case "github.pr.create":
+      return "Draft PR";
+    case "github.issue.create":
+      return "Create issue";
+    case "notion.page.update":
+      return "Accept";
+    case "notion.page.create":
+      return "Create page";
+    case "slack.message.send":
+    case "slack.message.reply":
+      return "Send";
+    default:
+      return "Approve";
+  }
+}
+
+export function buildReplyBlocks(text: string, actions: Action[]): KnownBlock[] {
+  const blocks: KnownBlock[] = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text,
+      },
+    } as SectionBlock,
+  ];
+
+  // Add divider before action cards
+  if (actions.length > 0) {
+    blocks.push({ type: "divider" });
+  }
+
+  // Add each action card
+  for (const action of actions) {
+    blocks.push(...buildActionCard(action));
+    blocks.push({ type: "divider" });
+  }
+
+  return blocks;
+}
+
+export function buildConfirmationBlocks(
+  action: Action,
+  success: boolean,
+  resultUrl?: string
+): KnownBlock[] {
+  const config = ACTION_CONFIGS[action.type as ActionType];
+  const status = success ? "Done" : "Failed";
+  const emoji = success ? ":white_check_mark:" : ":x:";
+
+  const blocks: KnownBlock[] = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `${emoji} ${status}. ${config.title}`,
+      },
+    } as SectionBlock,
+  ];
+
+  if (resultUrl) {
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `<${resultUrl}|View in ${action.type.split(".")[0]}>`,
+        },
+      ],
+    });
+  }
+
+  return blocks;
+}
