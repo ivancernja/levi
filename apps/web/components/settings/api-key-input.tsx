@@ -54,17 +54,24 @@ export function ApiKeyInput({ workspaceId, hasExistingKey }: ApiKeyInputProps) {
   if (!isEditing && hasExistingKey) {
     return (
       <div className="flex items-center gap-4">
-        <div className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg bg-gray-50 dark:bg-gray-900">
-          <span className="text-gray-500">sk-or-••••••••••••••••</span>
+        <div
+          className="flex-1 px-3 py-2"
+          style={{
+            background: 'var(--background-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '2px',
+          }}
+        >
+          <span style={{ color: 'var(--foreground-subtle)' }}>sk-or-••••••••••••••••</span>
         </div>
         <button
           onClick={() => setIsEditing(true)}
-          className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+          className="btn btn-secondary"
         >
           Change
         </button>
         {saved && (
-          <span className="text-sm text-green-600 dark:text-green-400">
+          <span className="text-sm" style={{ color: 'var(--success)' }}>
             Saved
           </span>
         )}
@@ -80,26 +87,26 @@ export function ApiKeyInput({ workspaceId, hasExistingKey }: ApiKeyInputProps) {
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder="sk-or-..."
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+          className="flex-1"
         />
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-2 bg-black text-white dark:bg-white dark:text-black rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="btn btn-primary disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save"}
         </button>
         {hasExistingKey && (
           <button
             onClick={() => setIsEditing(false)}
-            className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+            className="btn btn-secondary"
           >
             Cancel
           </button>
         )}
       </div>
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-sm" style={{ color: 'var(--error)' }}>{error}</p>
       )}
     </div>
   );

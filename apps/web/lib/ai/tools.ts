@@ -307,6 +307,260 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "search_github_issues",
+      description:
+        "Search for GitHub issues across repositories. Can filter by repo and state.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Search query (searches title and body)",
+          },
+          repo: {
+            type: "string",
+            description: "Filter to specific repo (format: 'owner/repo')",
+          },
+          state: {
+            type: "string",
+            enum: ["open", "closed", "all"],
+            description: "Filter by issue state (default: all)",
+          },
+          limit: {
+            type: "number",
+            description: "Max results to return (default: 10)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_github_issue",
+      description:
+        "Get details of a specific GitHub issue by repo and issue number.",
+      parameters: {
+        type: "object",
+        properties: {
+          owner: {
+            type: "string",
+            description: "Repository owner (e.g., 'facebook')",
+          },
+          repo: {
+            type: "string",
+            description: "Repository name (e.g., 'react')",
+          },
+          issueNumber: {
+            type: "number",
+            description: "Issue number",
+          },
+        },
+        required: ["owner", "repo", "issueNumber"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_github_pr",
+      description:
+        "Get details of a specific GitHub pull request including comments, reviews, and diff stats.",
+      parameters: {
+        type: "object",
+        properties: {
+          owner: {
+            type: "string",
+            description: "Repository owner",
+          },
+          repo: {
+            type: "string",
+            description: "Repository name",
+          },
+          prNumber: {
+            type: "number",
+            description: "Pull request number",
+          },
+        },
+        required: ["owner", "repo", "prNumber"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_github_prs",
+      description:
+        "List pull requests for a GitHub repository.",
+      parameters: {
+        type: "object",
+        properties: {
+          owner: {
+            type: "string",
+            description: "Repository owner",
+          },
+          repo: {
+            type: "string",
+            description: "Repository name",
+          },
+          state: {
+            type: "string",
+            enum: ["open", "closed", "all"],
+            description: "Filter by PR state (default: open)",
+          },
+          limit: {
+            type: "number",
+            description: "Max results to return (default: 10)",
+          },
+        },
+        required: ["owner", "repo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_github_repo_files",
+      description:
+        "List files and directories in a GitHub repository path.",
+      parameters: {
+        type: "object",
+        properties: {
+          owner: {
+            type: "string",
+            description: "Repository owner",
+          },
+          repo: {
+            type: "string",
+            description: "Repository name",
+          },
+          path: {
+            type: "string",
+            description: "Path within repo (default: root)",
+          },
+        },
+        required: ["owner", "repo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_github_file_content",
+      description:
+        "Get the contents of a specific file in a GitHub repository.",
+      parameters: {
+        type: "object",
+        properties: {
+          owner: {
+            type: "string",
+            description: "Repository owner",
+          },
+          repo: {
+            type: "string",
+            description: "Repository name",
+          },
+          path: {
+            type: "string",
+            description: "Full path to the file",
+          },
+        },
+        required: ["owner", "repo", "path"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_notion_pages",
+      description:
+        "Search for Notion pages by query.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Search query",
+          },
+          filter: {
+            type: "string",
+            enum: ["page", "database"],
+            description: "Filter to only pages or databases",
+          },
+          limit: {
+            type: "number",
+            description: "Max results to return (default: 10)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_notion_page",
+      description:
+        "Get a Notion page with its full content.",
+      parameters: {
+        type: "object",
+        properties: {
+          pageId: {
+            type: "string",
+            description: "Notion page ID or URL",
+          },
+          includeContent: {
+            type: "boolean",
+            description: "Whether to fetch full page content (default: true)",
+          },
+        },
+        required: ["pageId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_notion_databases",
+      description:
+        "List Notion databases accessible to the integration.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "Max results to return (default: 10)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_notion_database_items",
+      description:
+        "Query items from a Notion database.",
+      parameters: {
+        type: "object",
+        properties: {
+          databaseId: {
+            type: "string",
+            description: "Notion database ID",
+          },
+          limit: {
+            type: "number",
+            description: "Max results to return (default: 50)",
+          },
+        },
+        required: ["databaseId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "propose_code_generation",
       description:
         "Propose generating code and pushing it to a new GitHub repository. Use this when asked to build/code/create an app or feature. The user will need to approve before execution.",
@@ -351,6 +605,66 @@ export const AGENT_TOOLS: ChatCompletionTool[] = [
           },
         },
         required: ["description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remember_person",
+      description:
+        "Remember information about a team member. Use when users say things like 'ian's github is @iansmith' or 'alex works on the frontend'. This helps resolve ambiguous references.",
+      parameters: {
+        type: "object",
+        properties: {
+          shortName: {
+            type: "string",
+            description: "Short name or nickname (e.g., 'ian', 'alex')",
+          },
+          fullName: {
+            type: "string",
+            description: "Full name if known",
+          },
+          github: {
+            type: "string",
+            description: "GitHub username",
+          },
+          linear: {
+            type: "string",
+            description: "Linear display name or email",
+          },
+          role: {
+            type: "string",
+            description: "Role or what they work on (e.g., 'frontend', 'backend lead')",
+          },
+          notes: {
+            type: "string",
+            description: "Any other useful info",
+          },
+        },
+        required: ["shortName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remember_repo",
+      description:
+        "Remember a repo shortcut. Use when users refer to repos by nickname like 'the api' or 'frontend'. This helps resolve ambiguous repo references.",
+      parameters: {
+        type: "object",
+        properties: {
+          shortcut: {
+            type: "string",
+            description: "The shortcut/nickname (e.g., 'api', 'frontend', 'the app')",
+          },
+          fullName: {
+            type: "string",
+            description: "Full repo name in owner/repo format (e.g., 'myorg/api-server')",
+          },
+        },
+        required: ["shortcut", "fullName"],
       },
     },
   },

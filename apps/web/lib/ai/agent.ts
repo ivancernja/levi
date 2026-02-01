@@ -4,10 +4,35 @@ import { AGENT_TOOLS } from "./tools";
 import { getRelevantContext, getRecentMessages } from "@/lib/context/manager";
 import { db, integrations, workspaces, actions } from "@/lib/db";
 import { eq, desc, and } from "drizzle-orm";
-import type { ActionType } from "@/lib/db/schema";
+import type { ActionType, WorkspaceMetadata } from "@/lib/db/schema";
 import { searchLinearIssues, getLinearIssue } from "@/lib/integrations/linear/client";
-import { listGitHubRepos } from "@/lib/integrations/github/client";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import {
+  listGitHubRepos,
+  searchGitHubIssues,
+  getGitHubIssue,
+  getGitHubPR,
+  listGitHubPRs,
+  getGitHubRepoFiles,
+  getGitHubFileContent,
+} from "@/lib/integrations/github/client";
+import {
+  searchNotionPages,
+  getNotionPage,
+  listNotionDatabases,
+  getNotionDatabaseItems,
+} from "@/lib/integrations/notion/client";
+import {
+  getMCPToolsForAgent,
+  executeMCPTool,
+  parseMCPToolName,
+} from "@/lib/mcp/discovery";
+import {
+  gatherContext,
+  formatGatheredContext,
+  hasGatheredContent,
+} from "@/lib/context/gatherer";
+import { rememberPerson, rememberRepo } from "@/lib/context/knowledge";
+import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 
 interface ProcessMessageInput {
   workspaceId: string;
@@ -29,7 +54,28 @@ interface ProcessMessageResult {
 }
 
 // Read tools that should be executed immediately and results fed back
-const READ_TOOLS = ["search_linear_issues", "get_linear_issue", "list_github_repos", "learn_rule"];
+const READ_TOOLS = [
+  // Linear
+  "search_linear_issues",
+  "get_linear_issue",
+  // GitHub
+  "list_github_repos",
+  "search_github_issues",
+  "get_github_issue",
+  "get_github_pr",
+  "list_github_prs",
+  "get_github_repo_files",
+  "get_github_file_content",
+  // Notion
+  "search_notion_pages",
+  "get_notion_page",
+  "list_notion_databases",
+  "get_notion_database_items",
+  // Learning
+  "learn_rule",
+  "remember_person",
+  "remember_repo",
+];
 
 export async function processMessage(
   input: ProcessMessageInput
@@ -41,13 +87,11 @@ export async function processMessage(
     where: eq(workspaces.id, workspaceId),
   });
 
-  const metadata = workspace?.metadata as {
-    model?: string;
-    openrouterApiKey?: string;
-  } | null;
+  const metadata = workspace?.metadata as WorkspaceMetadata | null;
 
   const model = metadata?.model || DEFAULT_MODEL;
   const apiKey = metadata?.openrouterApiKey;
+  const workspaceKnowledge = metadata?.knowledge;
 
   if (!apiKey) {
     return {
@@ -77,6 +121,22 @@ export async function processMessage(
     limit: 10,
   });
 
+  // Get MCP tools (if any configured)
+  const { tools: mcpTools, mcpToolNames } = await getMCPToolsForAgent(workspaceId);
+
+  // Combine built-in tools with MCP tools
+  const allTools: ChatCompletionTool[] = [...AGENT_TOOLS, ...mcpTools];
+
+  // Gather rich context from integrations based on user message
+  const gatheredContext = await gatherContext(workspaceId, content, {
+    maxLinearIssues: 3,
+    maxGitHubItems: 3,
+    maxNotionPages: 2,
+  });
+  const gatheredContextText = hasGatheredContent(gatheredContext)
+    ? formatGatheredContext(gatheredContext)
+    : "";
+
   // Build context for the prompt
   const contextPrompt = buildContextPrompt({
     recentMessages: recentMessages.map((m) => ({
@@ -99,6 +159,11 @@ export async function processMessage(
       createdAt: a.createdAt,
     })),
     channelContext,
+    mcpServers: mcpTools.length > 0
+      ? mcpTools.map((t) => t.function.name.replace(/^mcp_[^_]+_/, "")).slice(0, 10)
+      : undefined,
+    gatheredContext: gatheredContextText || undefined,
+    workspaceKnowledge,
   });
 
   // Build initial messages
@@ -120,7 +185,7 @@ export async function processMessage(
       model,
       max_tokens: 4096,
       messages,
-      tools: AGENT_TOOLS,
+      tools: allTools.length > 0 ? allTools : undefined,
     });
 
     const choice = response.choices[0];
@@ -138,7 +203,17 @@ export async function processMessage(
         const toolName = toolCall.function.name;
         const toolArgs = JSON.parse(toolCall.function.arguments);
 
-        if (READ_TOOLS.includes(toolName)) {
+        // Check if it's an MCP tool
+        if (mcpToolNames.includes(toolName)) {
+          // MCP tools are always read-only for now
+          hasReadTools = true;
+          const result = await executeMCPTool(toolName, toolArgs);
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result),
+          });
+        } else if (READ_TOOLS.includes(toolName)) {
           // Execute read tool and add result to messages
           hasReadTools = true;
           const result = await executeReadTool(workspaceId, toolName, toolArgs);
@@ -189,6 +264,7 @@ async function executeReadTool(
   args: Record<string, unknown>
 ): Promise<unknown> {
   switch (toolName) {
+    // Linear tools
     case "search_linear_issues": {
       const results = await searchLinearIssues(
         workspaceId,
@@ -201,10 +277,102 @@ async function executeReadTool(
       const issue = await getLinearIssue(workspaceId, args.issueId as string);
       return issue || { error: "Issue not found" };
     }
+
+    // GitHub tools
     case "list_github_repos": {
       const repos = await listGitHubRepos(workspaceId, (args.limit as number) || 10);
       return { repos };
     }
+    case "search_github_issues": {
+      const issues = await searchGitHubIssues(workspaceId, args.query as string, {
+        repo: args.repo as string | undefined,
+        state: args.state as "open" | "closed" | "all" | undefined,
+        limit: (args.limit as number) || 10,
+      });
+      return { issues };
+    }
+    case "get_github_issue": {
+      const issue = await getGitHubIssue(
+        workspaceId,
+        args.owner as string,
+        args.repo as string,
+        args.issueNumber as number
+      );
+      return issue || { error: "Issue not found" };
+    }
+    case "get_github_pr": {
+      const pr = await getGitHubPR(
+        workspaceId,
+        args.owner as string,
+        args.repo as string,
+        args.prNumber as number
+      );
+      return pr || { error: "PR not found" };
+    }
+    case "list_github_prs": {
+      const prs = await listGitHubPRs(
+        workspaceId,
+        args.owner as string,
+        args.repo as string,
+        {
+          state: args.state as "open" | "closed" | "all" | undefined,
+          limit: (args.limit as number) || 10,
+        }
+      );
+      return { prs };
+    }
+    case "get_github_repo_files": {
+      const files = await getGitHubRepoFiles(
+        workspaceId,
+        args.owner as string,
+        args.repo as string,
+        (args.path as string) || ""
+      );
+      return { files };
+    }
+    case "get_github_file_content": {
+      const content = await getGitHubFileContent(
+        workspaceId,
+        args.owner as string,
+        args.repo as string,
+        args.path as string
+      );
+      return content || { error: "File not found" };
+    }
+
+    // Notion tools
+    case "search_notion_pages": {
+      const pages = await searchNotionPages(workspaceId, args.query as string, {
+        filter: args.filter as "page" | "database" | undefined,
+        limit: (args.limit as number) || 10,
+      });
+      return { pages };
+    }
+    case "get_notion_page": {
+      const page = await getNotionPage(workspaceId, args.pageId as string, {
+        includeContent: args.includeContent !== false,
+      });
+      return page || { error: "Page not found" };
+    }
+    case "list_notion_databases": {
+      const databases = await listNotionDatabases(
+        workspaceId,
+        (args.limit as number) || 10
+      );
+      return { databases };
+    }
+    case "get_notion_database_items": {
+      const items = await getNotionDatabaseItems(
+        workspaceId,
+        args.databaseId as string,
+        {
+          limit: (args.limit as number) || 50,
+        }
+      );
+      return { items };
+    }
+
+    // Learning
     case "learn_rule": {
       const { createRuleFromNaturalLanguage } = await import("@/lib/proactivity/engine");
       const rule = await createRuleFromNaturalLanguage(
@@ -224,6 +392,28 @@ async function executeReadTool(
       }
       return { success: false, error: "couldn't learn that rule, maybe try rephrasing?" };
     }
+
+    case "remember_person": {
+      const result = await rememberPerson(workspaceId, {
+        shortName: args.shortName as string,
+        fullName: args.fullName as string | undefined,
+        github: args.github as string | undefined,
+        linear: args.linear as string | undefined,
+        role: args.role as string | undefined,
+        notes: args.notes as string | undefined,
+      });
+      return result;
+    }
+
+    case "remember_repo": {
+      const result = await rememberRepo(
+        workspaceId,
+        args.shortcut as string,
+        args.fullName as string
+      );
+      return result;
+    }
+
     default:
       return { error: "Unknown tool" };
   }

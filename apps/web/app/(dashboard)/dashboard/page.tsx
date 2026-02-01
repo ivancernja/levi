@@ -7,26 +7,37 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+    <div className="max-w-4xl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--foreground-subtle)' }}>
+          Welcome back, {session?.user.name}
+        </p>
+      </div>
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg">
-          <h2 className="font-semibold mb-2">Welcome, {session?.user.name}</h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
+        <div className="fieldset">
+          <div className="fieldset-legend">Welcome</div>
+          <h2 className="font-medium mb-2">Get Started</h2>
+          <p className="text-sm font-sans" style={{ color: 'var(--foreground-muted)' }}>
             Connect your integrations to get started with Levi.
           </p>
         </div>
-        <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg">
-          <h2 className="font-semibold mb-2">Integrations</h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
-            0 connected
-          </p>
+
+        <div className="fieldset">
+          <div className="fieldset-legend">Integrations</div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold" style={{ color: 'var(--accent)' }}>0</span>
+            <span className="text-sm" style={{ color: 'var(--foreground-subtle)' }}>connected</span>
+          </div>
         </div>
-        <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg">
-          <h2 className="font-semibold mb-2">Actions</h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
-            0 pending
-          </p>
+
+        <div className="fieldset">
+          <div className="fieldset-legend">Actions</div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold" style={{ color: 'var(--accent)' }}>0</span>
+            <span className="text-sm" style={{ color: 'var(--foreground-subtle)' }}>pending</span>
+          </div>
         </div>
       </div>
     </div>

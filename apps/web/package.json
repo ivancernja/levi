@@ -15,6 +15,7 @@
   "dependencies": {
     "@e2b/code-interpreter": "^2.3.3",
     "@linear/sdk": "^29.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@neondatabase/serverless": "^0.10.4",
     "@notionhq/client": "^2.2.15",
     "@octokit/rest": "^21.0.2",

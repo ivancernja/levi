@@ -1,57 +1,59 @@
 import { db, messages } from "@/lib/db";
 import { eq, sql, desc } from "drizzle-orm";
+import OpenAI from "openai";
 
-// Use Anthropic's embedding model via Voyage (or OpenAI's for now)
-// For simplicity, we'll use a placeholder that you can swap out
-// In production, use voyage-3 or text-embedding-3-small
+// OpenAI text-embedding-3-small: $0.02/1M tokens, 1536 dimensions
+const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_DIMENSIONS = 1536;
 
-export async function generateEmbedding(text: string): Promise<number[]> {
-  // Option 1: Use OpenAI embeddings (most common)
-  // You'd need to add openai to dependencies
-  /*
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
-  return response.data[0].embedding;
-  */
+// Lazy initialization to avoid errors when API key is not set
+let openaiClient: OpenAI | null = null;
 
-  // Option 2: Use Voyage AI (Anthropic's recommended)
-  /*
-  const response = await fetch("https://api.voyageai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.VOYAGE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "voyage-3",
-      input: text,
-    }),
-  });
-  const data = await response.json();
-  return data.data[0].embedding;
-  */
-
-  // For now, return a mock embedding (replace with real implementation)
-  // This generates a deterministic but meaningless embedding based on text hash
-  const hash = simpleHash(text);
-  const embedding = new Array(1536).fill(0).map((_, i) => {
-    const seed = hash + i;
-    return (Math.sin(seed) + 1) / 2 - 0.5;
-  });
-  return embedding;
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY environment variable is required for embeddings");
+    }
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
 }
 
-function simpleHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return hash;
+export async function generateEmbedding(text: string): Promise<number[]> {
+  // Truncate text if too long (max ~8191 tokens for text-embedding-3-small)
+  // Rough estimate: 4 chars per token, so ~32K chars max
+  const truncatedText = text.slice(0, 32000);
+
+  const openai = getOpenAIClient();
+
+  const response = await openai.embeddings.create({
+    model: EMBEDDING_MODEL,
+    input: truncatedText,
+    dimensions: EMBEDDING_DIMENSIONS,
+  });
+
+  return response.data[0].embedding;
+}
+
+export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  if (texts.length === 0) return [];
+
+  // Truncate each text
+  const truncatedTexts = texts.map(text => text.slice(0, 32000));
+
+  const openai = getOpenAIClient();
+
+  const response = await openai.embeddings.create({
+    model: EMBEDDING_MODEL,
+    input: truncatedTexts,
+    dimensions: EMBEDDING_DIMENSIONS,
+  });
+
+  // Sort by index to maintain order
+  return response.data
+    .sort((a, b) => a.index - b.index)
+    .map(item => item.embedding);
 }
 
 export async function storeMessageWithEmbedding(

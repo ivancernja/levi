@@ -70,9 +70,9 @@ export default async function IntegrationsPage() {
 
   if (!membership) {
     return (
-      <div>
-        <h1 className="text-2xl font-bold mb-6">Integrations</h1>
-        <p className="text-gray-600 dark:text-gray-400">
+      <div className="max-w-4xl">
+        <h1 className="text-2xl font-bold tracking-tight mb-6">Integrations</h1>
+        <p style={{ color: 'var(--foreground-muted)' }}>
           Create a workspace first to connect integrations.
         </p>
       </div>
@@ -87,11 +87,13 @@ export default async function IntegrationsPage() {
   const connectedTypes = new Set<string>(connectedIntegrations.map((i) => i.type));
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Integrations</h1>
-      <p className="text-gray-600 dark:text-gray-400 mb-8">
-        Connect your tools to let Levi work across your stack.
-      </p>
+    <div className="max-w-4xl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Integrations</h1>
+        <p className="text-sm mt-1 font-sans" style={{ color: 'var(--foreground-muted)' }}>
+          Connect your tools to let Levi work across your stack.
+        </p>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {INTEGRATION_CONFIGS.map((config) => {
@@ -103,30 +105,37 @@ export default async function IntegrationsPage() {
           return (
             <div
               key={config.type}
-              className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg"
+              className="fieldset"
             >
+              <div className="fieldset-legend">{config.name}</div>
               <div className="flex items-start justify-between mb-4">
-                <div className="text-gray-700 dark:text-gray-300">
+                <div style={{ color: 'var(--foreground-muted)' }}>
                   {config.icon}
                 </div>
                 {connected && (
-                  <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded">
+                  <span
+                    className="px-2 py-1 text-xs font-medium"
+                    style={{
+                      background: 'var(--success-muted)',
+                      color: 'var(--success)',
+                      borderRadius: '2px',
+                    }}
+                  >
                     Connected
                   </span>
                 )}
               </div>
-              <h3 className="font-semibold mb-1">{config.name}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-sm font-sans mb-4" style={{ color: 'var(--foreground-muted)' }}>
                 {config.description}
               </p>
               {connected ? (
-                <div className="text-sm text-gray-500">
+                <div className="text-sm" style={{ color: 'var(--foreground-subtle)' }}>
                   Connected as {integration?.externalName}
                 </div>
               ) : (
                 <Link
                   href={config.connectUrl}
-                  className="inline-block px-4 py-2 text-sm font-medium bg-black text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 transition-opacity"
+                  className="btn btn-primary"
                 >
                   Connect
                 </Link>

@@ -70,16 +70,49 @@ export const verifications = pgTable("verifications", {
 // Workspace Tables
 // ============================================================================
 
+export interface MCPServerConfig {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  description?: string;
+}
+
+export interface WorkspaceKnowledge {
+  // Team knowledge - who's who, what they work on
+  people?: Record<string, {
+    name: string;
+    github?: string;
+    linear?: string;
+    role?: string;
+    notes?: string;
+  }>;
+  // Repo shortcuts - "the api" → "org/api-server"
+  repos?: Record<string, string>;
+  // Project context
+  projects?: Record<string, {
+    description?: string;
+    linearTeam?: string;
+    githubRepo?: string;
+  }>;
+  // Custom notes (like SOUL.md)
+  notes?: string;
+}
+
+export interface WorkspaceMetadata {
+  model?: string; // OpenRouter model ID e.g. "anthropic/claude-sonnet-4"
+  openrouterApiKey?: string; // User's own OpenRouter API key
+  mcpServers?: MCPServerConfig[]; // MCP servers for custom integrations
+  knowledge?: WorkspaceKnowledge; // Team knowledge and shortcuts
+}
+
 export const workspaces = pgTable("workspaces", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   image: text("image"),
   // Workspace settings
-  metadata: jsonb("metadata").$type<{
-    model?: string; // OpenRouter model ID e.g. "anthropic/claude-sonnet-4"
-    openrouterApiKey?: string; // User's own OpenRouter API key
-  }>(),
+  metadata: jsonb("metadata").$type<WorkspaceMetadata>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

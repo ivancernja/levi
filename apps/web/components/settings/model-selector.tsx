@@ -50,65 +50,92 @@ export function ModelSelector({
     budget: "Budget",
   };
 
-  const tierColors = {
-    recommended: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-    good: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    budget: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  const tierStyles = {
+    recommended: {
+      background: 'var(--success-muted)',
+      color: 'var(--success)',
+    },
+    good: {
+      background: 'var(--background-tertiary)',
+      color: 'var(--accent)',
+    },
+    budget: {
+      background: 'var(--background-secondary)',
+      color: 'var(--foreground-muted)',
+    },
   };
 
   return (
     <div className="space-y-3">
-      {sortedModels.map((model) => (
-        <button
-          key={model.id}
-          onClick={() => handleSelect(model.id)}
-          disabled={saving}
-          className={`w-full p-4 text-left border rounded-lg transition-colors ${
-            selected === model.id
-              ? "border-black dark:border-white bg-gray-50 dark:bg-gray-900"
-              : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
-          }`}
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{model.name}</span>
-                <span
-                  className={`px-2 py-0.5 text-xs rounded-full ${tierColors[model.tier]}`}
-                >
-                  {tierLabels[model.tier]}
-                </span>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">{model.provider}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                {model.description}
-              </p>
-            </div>
-            <div className="flex items-center">
-              {selected === model.id && (
-                <div className="w-5 h-5 rounded-full bg-black dark:bg-white flex items-center justify-center">
-                  <svg
-                    className="w-3 h-3 text-white dark:text-black"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+      {sortedModels.map((model) => {
+        const isSelected = selected === model.id;
+        return (
+          <button
+            key={model.id}
+            onClick={() => handleSelect(model.id)}
+            disabled={saving}
+            className="w-full p-4 text-left transition-colors"
+            style={{
+              border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border)',
+              background: isSelected ? 'var(--background-secondary)' : 'transparent',
+              borderRadius: '2px',
+            }}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+                    {model.name}
+                  </span>
+                  <span
+                    className="px-2 py-0.5 text-xs"
+                    style={{
+                      ...tierStyles[model.tier],
+                      borderRadius: '2px',
+                    }}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
+                    {tierLabels[model.tier]}
+                  </span>
                 </div>
-              )}
+                <p className="text-sm mt-1" style={{ color: 'var(--foreground-subtle)' }}>
+                  {model.provider}
+                </p>
+                <p className="text-sm mt-2 font-sans" style={{ color: 'var(--foreground-muted)' }}>
+                  {model.description}
+                </p>
+              </div>
+              <div className="flex items-center">
+                {isSelected && (
+                  <div
+                    className="w-5 h-5 flex items-center justify-center"
+                    style={{
+                      background: 'var(--accent)',
+                      borderRadius: '2px',
+                    }}
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="#0f172a"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={3}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </button>
-      ))}
+          </button>
+        );
+      })}
 
       {saved && (
-        <p className="text-sm text-green-600 dark:text-green-400">
+        <p className="text-sm" style={{ color: 'var(--success)' }}>
           Model saved successfully
         </p>
       )}

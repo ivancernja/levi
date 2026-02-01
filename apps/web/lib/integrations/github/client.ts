@@ -69,3 +69,345 @@ export async function listGitHubRepos(
     return [];
   }
 }
+
+export interface GitHubIssue {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  author: string | null;
+  labels: string[];
+  assignees: string[];
+  comments: number;
+}
+
+export interface GitHubIssueSearchResult {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  author: string | null;
+  labels: string[];
+  assignees: string[];
+  comments: number;
+}
+
+export interface GitHubPR {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  mergedAt: string | null;
+  author: string | null;
+  labels: string[];
+  assignees: string[];
+  reviewers: string[];
+  draft: boolean;
+  mergeable: boolean | null;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  headBranch: string;
+  baseBranch: string;
+  comments: Array<{
+    author: string | null;
+    body: string;
+    createdAt: string;
+  }>;
+  reviews: Array<{
+    author: string | null;
+    state: string;
+    body: string | null;
+    submittedAt: string | null;
+  }>;
+}
+
+export interface GitHubFile {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  size?: number;
+  url: string;
+}
+
+export async function searchGitHubIssues(
+  workspaceId: string,
+  query: string,
+  options: {
+    repo?: string;
+    state?: "open" | "closed" | "all";
+    limit?: number;
+  } = {}
+): Promise<GitHubIssueSearchResult[]> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return [];
+
+  const { repo, state = "all", limit = 10 } = options;
+
+  try {
+    // Build search query
+    let searchQuery = query;
+    if (repo) {
+      searchQuery += ` repo:${repo}`;
+    }
+    searchQuery += " is:issue";
+    if (state !== "all") {
+      searchQuery += ` state:${state}`;
+    }
+
+    const response = await github.search.issuesAndPullRequests({
+      q: searchQuery,
+      per_page: limit,
+      sort: "updated",
+      order: "desc",
+    });
+
+    return response.data.items
+      .filter(item => !item.pull_request)
+      .map(issue => ({
+        number: issue.number,
+        title: issue.title,
+        body: issue.body ?? null,
+        state: issue.state,
+        url: issue.html_url,
+        createdAt: issue.created_at,
+        updatedAt: issue.updated_at,
+        author: issue.user?.login || null,
+        labels: issue.labels.map(l => (typeof l === "string" ? l : l.name || "")),
+        assignees: issue.assignees?.map(a => a.login) || [],
+        comments: issue.comments,
+      }));
+  } catch (error) {
+    console.error("GitHub search issues error:", error);
+    return [];
+  }
+}
+
+export async function getGitHubIssue(
+  workspaceId: string,
+  owner: string,
+  repo: string,
+  issueNumber: number
+): Promise<GitHubIssue | null> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return null;
+
+  try {
+    const { data: issue } = await github.issues.get({
+      owner,
+      repo,
+      issue_number: issueNumber,
+    });
+
+    return {
+      number: issue.number,
+      title: issue.title,
+      body: issue.body ?? null,
+      state: issue.state,
+      url: issue.html_url,
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at,
+      author: issue.user?.login || null,
+      labels: issue.labels.map(l => (typeof l === "string" ? l : l.name || "")),
+      assignees: issue.assignees?.map(a => a.login) || [],
+      comments: issue.comments,
+    };
+  } catch (error) {
+    console.error("GitHub get issue error:", error);
+    return null;
+  }
+}
+
+export async function getGitHubPR(
+  workspaceId: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<GitHubPR | null> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return null;
+
+  try {
+    const [prResponse, commentsResponse, reviewsResponse] = await Promise.all([
+      github.pulls.get({ owner, repo, pull_number: prNumber }),
+      github.issues.listComments({ owner, repo, issue_number: prNumber, per_page: 50 }),
+      github.pulls.listReviews({ owner, repo, pull_number: prNumber, per_page: 50 }),
+    ]);
+
+    const pr = prResponse.data;
+
+    return {
+      number: pr.number,
+      title: pr.title,
+      body: pr.body,
+      state: pr.state,
+      url: pr.html_url,
+      createdAt: pr.created_at,
+      updatedAt: pr.updated_at,
+      mergedAt: pr.merged_at,
+      author: pr.user?.login || null,
+      labels: pr.labels.map(l => l.name || ""),
+      assignees: pr.assignees?.map(a => a.login) || [],
+      reviewers: pr.requested_reviewers?.map(r => r.login) || [],
+      draft: pr.draft || false,
+      mergeable: pr.mergeable,
+      additions: pr.additions,
+      deletions: pr.deletions,
+      changedFiles: pr.changed_files,
+      headBranch: pr.head.ref,
+      baseBranch: pr.base.ref,
+      comments: commentsResponse.data.map(c => ({
+        author: c.user?.login || null,
+        body: c.body || "",
+        createdAt: c.created_at,
+      })),
+      reviews: reviewsResponse.data.map(r => ({
+        author: r.user?.login || null,
+        state: r.state,
+        body: r.body,
+        submittedAt: r.submitted_at || null,
+      })),
+    };
+  } catch (error) {
+    console.error("GitHub get PR error:", error);
+    return null;
+  }
+}
+
+export async function listGitHubPRs(
+  workspaceId: string,
+  owner: string,
+  repo: string,
+  options: {
+    state?: "open" | "closed" | "all";
+    limit?: number;
+  } = {}
+): Promise<Array<Omit<GitHubPR, "comments" | "reviews">>> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return [];
+
+  const { state = "open", limit = 10 } = options;
+
+  try {
+    const response = await github.pulls.list({
+      owner,
+      repo,
+      state,
+      per_page: limit,
+      sort: "updated",
+      direction: "desc",
+    });
+
+    return response.data.map(pr => ({
+      number: pr.number,
+      title: pr.title,
+      body: pr.body,
+      state: pr.state,
+      url: pr.html_url,
+      createdAt: pr.created_at,
+      updatedAt: pr.updated_at,
+      mergedAt: pr.merged_at,
+      author: pr.user?.login || null,
+      labels: pr.labels.map(l => l.name || ""),
+      assignees: pr.assignees?.map(a => a.login) || [],
+      reviewers: pr.requested_reviewers?.map(r => r.login) || [],
+      draft: pr.draft || false,
+      mergeable: null, // Not available in list endpoint
+      additions: 0,
+      deletions: 0,
+      changedFiles: 0,
+      headBranch: pr.head.ref,
+      baseBranch: pr.base.ref,
+    }));
+  } catch (error) {
+    console.error("GitHub list PRs error:", error);
+    return [];
+  }
+}
+
+export async function getGitHubRepoFiles(
+  workspaceId: string,
+  owner: string,
+  repo: string,
+  path: string = ""
+): Promise<GitHubFile[]> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return [];
+
+  try {
+    const response = await github.repos.getContent({
+      owner,
+      repo,
+      path,
+    });
+
+    // If it's a single file, return it as array
+    if (!Array.isArray(response.data)) {
+      const file = response.data;
+      const fileType = file.type as string;
+      if (fileType === "file" || fileType === "dir") {
+        return [{
+          name: file.name,
+          path: file.path,
+          type: fileType as "file" | "dir",
+          size: file.size,
+          url: file.html_url || "",
+        }];
+      }
+      return [];
+    }
+
+    return response.data
+      .filter((item): item is typeof item & { type: "file" | "dir" } =>
+        item.type === "file" || item.type === "dir"
+      )
+      .map(item => ({
+        name: item.name,
+        path: item.path,
+        type: item.type,
+        size: item.size,
+        url: item.html_url || "",
+      }));
+  } catch (error) {
+    console.error("GitHub get repo files error:", error);
+    return [];
+  }
+}
+
+export async function getGitHubFileContent(
+  workspaceId: string,
+  owner: string,
+  repo: string,
+  path: string
+): Promise<{ content: string; encoding: string } | null> {
+  const github = await getGitHubClient(workspaceId);
+  if (!github) return null;
+
+  try {
+    const response = await github.repos.getContent({
+      owner,
+      repo,
+      path,
+    });
+
+    if (Array.isArray(response.data) || response.data.type !== "file") {
+      return null;
+    }
+
+    // Content is base64 encoded
+    const content = Buffer.from(response.data.content, "base64").toString("utf-8");
+    return { content, encoding: "utf-8" };
+  } catch (error) {
+    console.error("GitHub get file content error:", error);
+    return null;
+  }
+}
